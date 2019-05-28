@@ -49,7 +49,7 @@ __repo__ = "https://github.com/adafruit/Circuitpython_CircuitPython_CircuitPytho
 
 # Device Address
 _REG_ATECC_ADDR = 0xC0
-_REG_ATECC_DEVICE_ADDR = _ATECC_ADDR >> 1
+_REG_ATECC_DEVICE_ADDR = _REG_ATECC_ADDR >> 1
 
 # Version Registers
 _REG_REVISION = 0x00 # device version register address
@@ -66,19 +66,18 @@ class ATECCx08A:
     """
     CircuitPython interface for ATECCx08A Crypto Co-Processor Devices.
     """
-    def __init__(self, i2c_bus, address = _ATECC_DEVICE_ADDR):
+    def __init__(self, i2c_bus, address = _REG_ATECC_DEVICE_ADDR):
         """Initializes an ATECC device.
-        :param i2cdevice i2c_bus: I2C Bus.
+        :param busio i2c_bus: I2C Bus object.
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
         """
-        # dont create an i2cdevice yet, we need to wakeup
-        print('waking the i2c device...')
         self.i2c_bus = i2c_bus
         is_found = self._wake()
         if is_found == -1:
             raise TypeError('ATECCx08 not found - please check your wiring!')
         print('device found and awake!')
-
+        device = I2CDevice(i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=True)
+        print('i2c device initd!')
 
     def _wake(self):
         """Wakes up THE ATECC608A from sleep or idle modes.
@@ -88,7 +87,7 @@ class ATECCx08A:
             pass
         print('bus unlocked!')
         try:
-            self.i2c_bus.writeto(_ATECC_ADDR, bytes([b'\x00\x00']), stop=False)
+            self.i2c_bus.writeto(_REG_ATECC_ADDR, bytes([b'\x00\x00']), stop=False)
         except:
             pass # allow writing to ATECC_ADDR
         # wait for TWLO millis before attempting an i2c scan
@@ -98,43 +97,3 @@ class ATECCx08A:
         if data[0] != 96:
             return -1
         return 1
-
-    # pylint: disable=no-member
-    # Reconsider pylint: disable when this can be tested
-    def _read_into(self, address, buf, length=None):
-        # Read a number of bytes from the specified address into the provided
-        # buffer.  If length is not specified (the default) the entire buffer
-        # will be filled.
-        if length is None:
-            length = len(buf)
-        with self._device as device:
-            self._BUFFER[0] = address & 0x7F  # Strip out top bit to set 0
-                                              # value (read).
-            device.write(self._BUFFER, end=1)
-            device.readinto(buf, end=length)
-
-    def _read_u8(self, address):
-        # Read a single byte from the provided address and return it.
-        self._read_into(address, self._BUFFER, length=1)
-        return self._BUFFER[0]
-
-    def _write_from(self, address, buf, length=None):
-        # Write a number of bytes to the provided address and taken from the
-        # provided buffer.  If no length is specified (the default) the entire
-        # buffer is written.
-        if length is None:
-            length = len(buf)
-        with self._device as device:
-            self._BUFFER[0] = (address | 0x80) & 0xFF  # Set top bit to 1 to
-                                                       # indicate a write.
-            device.write(self._BUFFER, end=1)
-            device.write(buf, end=length)
-
-    def _write_u8(self, address, val):
-        # Write a byte register to the chip.  Specify the 7-bit address and the
-        # 8-bit value to write to that address.
-        with self._device as device:
-            self._BUFFER[0] = (address | 0x80) & 0xFF  # Set top bit to 1 to
-                                                       # indicate a write.
-            self._BUFFER[1] = val & 0xFF
-            device.write(self._BUFFER, end=2)
