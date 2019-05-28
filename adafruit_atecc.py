@@ -61,7 +61,6 @@ _WAKE_CLK_FREQ = 100000 # slower clock speed
 _NORMAL_CLK_FREQ = 1000000 # regular clock speed
 _TWLO_TIME = 6e-5 # TWlo, in microseconds
 
-
 class ATECCx08A:
     """
     CircuitPython interface for ATECCx08A Crypto Co-Processor Devices.
@@ -72,28 +71,29 @@ class ATECCx08A:
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
         """
         self.i2c_bus = i2c_bus
-        is_found = self._wake()
+        is_found = self._wake(self.i2c_bus)
         if is_found == -1:
             raise TypeError('ATECCx08 not found - please check your wiring!')
         print('device found and awake!')
         device = I2CDevice(i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=True)
         print('i2c device initd!')
 
-    def _wake(self):
+
+    def _wake(self, i2c_bus):
         """Wakes up THE ATECC608A from sleep or idle modes.
         Returns 1 if device woke up from sleep/idle mode. 
+        :param busio i2c_bus: I2C bus connected to the ATECCx08A.
         """
-        while not self.i2c_bus.try_lock():
+        while not i2c_bus.try_lock():
             pass
         print('bus unlocked!')
         try:
-            self.i2c_bus.writeto(_REG_ATECC_ADDR, bytes([b'\x00\x00']), stop=False)
+            i2c_bus.writeto(_REG_ATECC_ADDR, bytes([b'\x00\x00']), stop=False)
         except:
-            pass # allow writing to ATECC_ADDR
-        # wait for TWLO millis before attempting an i2c scan
+            pass # allow writes to ATECC_ADDR, ignore error
         time.sleep(_TWLO_TIME)
         # check for an i2c device
-        data = self.i2c_bus.scan()
+        data = i2c_bus.scan()
         if data[0] != 96:
             return -1
         return 1
