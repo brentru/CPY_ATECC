@@ -40,6 +40,7 @@ Implementation Notes
  * Adafruit's Bus Device library: https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
 """
 import time
+import board
 from micropython import const
 import busio
 from adafruit_bus_device.i2c_device import I2CDevice
@@ -52,16 +53,16 @@ _REG_ATECC_ADDR = 0xC0
 _REG_ATECC_DEVICE_ADDR = _REG_ATECC_ADDR >> 1
 
 # Version Registers
-_REG_REVISION = 0x00 # device version register address
+_REG_REVISION = 0x30 # device version register address
 _ATECC_508_VER = 0x50
 _ATECC_608_VER = 0x60
 
 # Clock constants
-_WAKE_CLK_FREQ = 100000 # slower clock speed 
 _NORMAL_CLK_FREQ = 1000000 # regular clock speed
 _TWLO_TIME = 6e-5 # TWlo, in microseconds
 
 class ATECCx08A:
+    _BUFFER = bytearray(2)
     """
     CircuitPython interface for ATECCx08A Crypto Co-Processor Devices.
     """
@@ -75,8 +76,11 @@ class ATECCx08A:
         if is_found == -1:
             raise TypeError('ATECCx08 not found - please check your wiring!')
         print('device found and awake!')
-        device = I2CDevice(i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=True)
-        print('i2c device initd!')
+        self._device = I2CDevice(self.i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=True)
+        print('I2CDevice initd!')
+        # check revision number
+        data = self._read_u8(0x30, 0x00)
+        print(data)
 
 
     def _wake(self, i2c_bus):
@@ -96,4 +100,40 @@ class ATECCx08A:
         data = i2c_bus.scan()
         if data[0] != 96:
             return -1
+        print('deiniting bus...')
+        self.i2c_bus.deinit()
+        self.i2c_bus = busio.I2C(board.SCL, board.SDA, frequency = _NORMAL_CLK_FREQ)
+        print('new i2c bus initd')
         return 1
+
+
+    def _send_command(self, opcode, param_1, param_2, data):
+        """Sends a security command packet over i2c.
+        :param byte opcode: The command Opcode
+        :param byte param_1: The first parameter
+        :param byte param_2: The second parameter, can be two bytes.
+        :param byte param_3 data: Optional remaining input data.
+        """
+        
+
+        # IO Group transfers:
+        # 1) Count, number of bytes to be transfered to/from the device in the group
+        # 2) command Packet
+        # 3) Checksum, crc16 verification of count and packet bytes
+        # all 3 of these get sent to the device over i2c along with the address
+
+    def _read_u8(self, opcode, param_1, param_2=0x0000, data_length = 0):
+        """Performs an 8-bit write/read from the specified OPCODE address
+        """
+        # Read an 8-bit unsigned value from the specified 8-bit address.
+        with self._device as i2c:
+            # build the command 
+            command_length = 8 + data_length
+            command = bytearray(command_length)
+            command[0] = 0x03;
+            command[1] = len(command) - 1
+            command[2] = opcode
+            command[3] = param_1
+            print('Opcode: ', opcode)
+            print(command)
+            self._BUFFER = c
