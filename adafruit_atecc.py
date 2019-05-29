@@ -79,7 +79,7 @@ class ATECCx08A:
         self._device = I2CDevice(self.i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=True)
         print('I2CDevice initd!')
         # check revision number
-        data = self._read_u8(0x30, 0x00)
+        data = self._send_command(0x30, 0x00)
         print(data)
 
 
@@ -106,34 +106,38 @@ class ATECCx08A:
         print('new i2c bus initd')
         return 1
 
-
-    def _send_command(self, opcode, param_1, param_2, data):
+    def _send_command(self, opcode, param_1, param_2=0x00, data = ''):
         """Sends a security command packet over i2c.
         :param byte opcode: The command Opcode
         :param byte param_1: The first parameter
         :param byte param_2: The second parameter, can be two bytes.
         :param byte param_3 data: Optional remaining input data.
         """
-        
+        print(opcode)
+        command_packet = bytearray(8+len(data))
+        print(command_packet)
+        # word address
+        command_packet[0] = 0x03
+        # i/o group: count
+        command_packet[1] = len(command_packet) - 1 # count
+        # security command packets
+        command_packet[2] = opcode
+        command_packet[3] = param_1
+        command_packet[4] = param_2
+        command_packet[5] = 0x00
+        # Checksum, CRC16 verification
+        crc = self._crc16(command_packet)
+        print(crc)
+        # uint16_t crc = crc16(&command[1], 8 - 3 + dataLength);
+        # memcpy(&command[6 + dataLength], &crc, sizeof(crc));
 
-        # IO Group transfers:
-        # 1) Count, number of bytes to be transfered to/from the device in the group
-        # 2) command Packet
-        # 3) Checksum, crc16 verification of count and packet bytes
-        # all 3 of these get sent to the device over i2c along with the address
-
-    def _read_u8(self, opcode, param_1, param_2=0x0000, data_length = 0):
-        """Performs an 8-bit write/read from the specified OPCODE address
-        """
-        # Read an 8-bit unsigned value from the specified 8-bit address.
-        with self._device as i2c:
-            # build the command 
-            command_length = 8 + data_length
-            command = bytearray(command_length)
-            command[0] = 0x03;
-            command[1] = len(command) - 1
-            command[2] = opcode
-            command[3] = param_1
-            print('Opcode: ', opcode)
-            print(command)
-            self._BUFFER = c
+    def _crc16(self, data):
+        crc = 0xffff
+        for byte in data:
+            crc ^= byte
+            for _ in range(8):
+                if crc & 0x0001:
+                    crc >>= 1
+                    crc ^= 0x8005
+                else:
+                
