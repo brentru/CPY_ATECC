@@ -113,9 +113,11 @@ class ATECCx08A:
         :param byte param_2: The second parameter, can be two bytes.
         :param byte param_3 data: Optional remaining input data.
         """
-        print(opcode)
+        print('Opcode: ', opcode)
+        print('Param_1: ', param_1)
+        print('Param_2: ', param_2)
+        print('Data: ', data)
         command_packet = bytearray(8+len(data))
-        print(command_packet)
         # word address
         command_packet[0] = 0x03
         # i/o group: count
@@ -127,9 +129,10 @@ class ATECCx08A:
         command_packet[5] = 0x00
         # Checksum, CRC16 verification
         crc = self._crc16(command_packet)
-        print(crc)
-        # uint16_t crc = crc16(&command[1], 8 - 3 + dataLength);
-        # memcpy(&command[6 + dataLength], &crc, sizeof(crc));
+        print('Calculated CRC: ', crc)
+        #print(bytes(crc))
+        command_packet[6] = crc
+        print('Command_Packet: ', command_packet)
 
     def _crc16(self, data):
         crc = 0xffff
@@ -140,4 +143,5 @@ class ATECCx08A:
                     crc >>= 1
                     crc ^= 0x8005
                 else:
-                
+                    crc >>= 1
+        return crc
