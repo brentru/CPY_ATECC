@@ -113,11 +113,16 @@ class ATECCx08A:
         :param byte param_2: The second parameter, can be two bytes.
         :param byte param_3 data: Optional remaining input data.
         """
+        # Show Args in REPL 
         print('Opcode: ', opcode)
         print('Param_1: ', param_1)
         print('Param_2: ', param_2)
         print('Data: ', data)
+        
+        # assembling command packet
         command_packet = bytearray(8+len(data))
+        print('Command Size: ', len(command_packet))
+
         # word address
         command_packet[0] = 0x03
         # i/o group: count
@@ -126,22 +131,29 @@ class ATECCx08A:
         command_packet[2] = opcode
         command_packet[3] = param_1
         command_packet[4] = param_2
-        command_packet[5] = 0x00
+        print(command_packet)
+        for i in range(0, len(command_packet)):
+            print('command_packet[{0}]: {1}'.format(i, command_packet[i]))
+
         # Checksum, CRC16 verification
-        crc = self._crc16(command_packet)
+        crc = self.at_crc(command_packet, len(command_packet) - 2)
         print('Calculated CRC: ', crc)
         #print(bytes(crc))
-        command_packet[6] = crc
-        print('Command_Packet: ', command_packet)
+        # command_packet[6] = crc
 
-    def _crc16(self, data):
+    def at_crc(self, data, length):
+        if (data == 0 or length == 0):
+            return 0
+        polynom = 0x8005
         crc = 0xffff
-        for byte in data:
-            crc ^= byte
-            for _ in range(8):
-                if crc & 0x0001:
-                    crc >>= 1
-                    crc ^= 0x8005
-                else:
-                    crc >>= 1
+        for i in range(length):
+            d = data[i]
+            for b in range(8):
+                data_bit = 1 if d & 1 << b else 0
+                crc_bit = crc >> 15 & 0xff
+                crc = crc << 1 & 0xffff
+                if data_bit != crc_bit:
+                    crc = crc ^ polynom & 0xffff
+        data[length] = crc & 0x00ff
+        data[length+1] = crc >> 8 & 0xff
         return crc
