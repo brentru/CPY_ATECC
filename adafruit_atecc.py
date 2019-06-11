@@ -59,6 +59,7 @@ _ATECC_608_VER = 0x60
 
 # Clock constants
 _NORMAL_CLK_FREQ = 1000000 # regular clock speed
+_WAKE_CLK_FREQ = 100000 # stretched clock for wakeup
 _TWLO_TIME = 6e-5 # TWlo, in microseconds
 
 class ATECCx08A:
@@ -72,15 +73,8 @@ class ATECCx08A:
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
         """
         self.i2c_bus = i2c_bus
-        is_found = self._wake(self.i2c_bus)
-        if is_found == -1:
-            raise TypeError('ATECCx08 not found - please check your wiring!')
-        print('device found and awake!')
-        self._device = I2CDevice(self.i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=True)
-        print('I2CDevice initd!')
-        # check revision number
-        data = self._send_command(0x30, 0x00)
-        print(data)
+        self._wake(self.i2c_bus)
+
 
 
     def _wake(self, i2c_bus):
@@ -91,20 +85,30 @@ class ATECCx08A:
         while not i2c_bus.try_lock():
             pass
         print('bus unlocked!')
+        zero_bits = bytearray(2)
+        # i2c_bus.writeto(_REG_ATECC_ADDR, zero_bits, stop=False)
         try:
-            i2c_bus.writeto(_REG_ATECC_ADDR, bytes([b'\x00\x00']), stop=False)
-        except:
+            i2c_bus.writeto(_REG_ATECC_ADDR, zero_bits, stop=False)
+            # i2c_bus.writeto(_REG_ATECC_ADDR, bytes([b'\x00\x00\x00']), stop=False)
+        except OSError:
             pass # allow writes to ATECC_ADDR, ignore error
         time.sleep(_TWLO_TIME)
         # check for an i2c device
         data = i2c_bus.scan()
+        print('I2C Addresses: ', data)
         if data[0] != 96:
-            return -1
-        print('deiniting bus...')
+            raise TypeError('ATECCx08 not found - please check your wiring!')
+        print('deiniting i2c bus...')
         self.i2c_bus.deinit()
+        print('reiniting i2c bus...')
         self.i2c_bus = busio.I2C(board.SCL, board.SDA, frequency = _NORMAL_CLK_FREQ)
-        print('new i2c bus initd')
-        return 1
+        self._device = I2CDevice(self.i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=False)
+
+    def rev_number(self):
+        """Returns the ATECC608As revision number
+        """
+        self._send_command(0x30, 0x00)
+
 
     def _send_command(self, opcode, param_1, param_2=0x00, data = ''):
         """Sends a security command packet over i2c.
@@ -122,7 +126,6 @@ class ATECCx08A:
         # assembling command packet
         command_packet = bytearray(8+len(data))
         print('Command Size: ', len(command_packet))
-
         # word address
         command_packet[0] = 0x03
         # i/o group: count
@@ -134,12 +137,31 @@ class ATECCx08A:
         print(command_packet)
         for i in range(0, len(command_packet)):
             print('command_packet[{0}]: {1}'.format(i, command_packet[i]))
-
         # Checksum, CRC16 verification
         crc = self.at_crc(command_packet, len(command_packet) - 2)
         print('Calculated CRC: ', crc)
-        #print(bytes(crc))
-        # command_packet[6] = crc
+
+
+        # WRITE to ATECC608A
+        with self._device:
+            self._device.write(command_packet)
+        # small sleep
+        time.sleep(2e-6)
+        # RETURNING from ATECC608A
+        # Command completion polling (6.2.2), (6.5)
+        # the size of the group is determined by the command
+        res_size = 3
+        #retries = 20
+        buff_size = 0
+        while buff_size != res_size:
+          with self._device:
+            self._device.readinto(self._BUFFER)
+            buff_size = len(self._BUFFER)
+            print(buff_size)
+            retries=-1
+        print('returned!')
+
+
 
     def at_crc(self, data, length):
         if (data == 0 or length == 0):
