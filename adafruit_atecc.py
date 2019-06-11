@@ -49,18 +49,32 @@ __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/Circuitpython_CircuitPython_CircuitPython_CryptoAuth.git"
 
 # Device Address
-_REG_ATECC_ADDR = 0xC0
+_REG_ATECC_ADDR = const(0xC0)
 _REG_ATECC_DEVICE_ADDR = _REG_ATECC_ADDR >> 1
 
 # Version Registers
-_REG_REVISION = 0x30 # device version register address
-_ATECC_508_VER = 0x50
-_ATECC_608_VER = 0x60
+_REG_REVISION = const(0x30) # device version register address
+_ATECC_508_VER = const(0x50)
+_ATECC_608_VER = const(0x60)
 
 # Clock constants
 _NORMAL_CLK_FREQ = 1000000 # regular clock speed
 _WAKE_CLK_FREQ = 100000 # stretched clock for wakeup
 _TWLO_TIME = 6e-5 # TWlo, in microseconds
+
+# Status/Error Codes (9-3)
+STATUS_SUCCESS = const(0x00)
+STATUS_WAKE = const(0x11)
+ERROR_CHECKMAC = const(0x01)
+ERROR_PARSE = const(0x03)
+ERROR_ECC = const(0x05)
+ERROR_EXEC = const(0x0F)
+ERROR_WATCHDOG = const(0xEE)
+ERROR_CRC = const(0xFF)
+
+
+# Constants
+_RX_RETRIES = const(20)
 
 class ATECCx08A:
     _BUFFER = bytearray(2)
@@ -151,17 +165,15 @@ class ATECCx08A:
         # Command completion polling (6.2.2), (6.5)
         # the size of the group is determined by the command
         res_size = 3
-        #retries = 20
-        buff_size = 0
-        while buff_size != res_size:
+        retries = _RX_RETRIES 
+        while retries > 0:
           with self._device:
             self._device.readinto(self._BUFFER)
             buff_size = len(self._BUFFER)
             print(buff_size)
             retries=-1
+        print(self._BUFFER)
         print('returned!')
-
-
 
     def at_crc(self, data, length):
         if (data == 0 or length == 0):
