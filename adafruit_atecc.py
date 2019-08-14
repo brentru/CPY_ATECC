@@ -86,43 +86,66 @@ class ATECCx08A:
         :param busio i2c_bus: I2C Bus object.
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
         """
-        self.i2c_bus = i2c_bus
-        self._wake(self.i2c_bus)
+        self._i2c_bus = i2c_bus
+        self._i2c_device = None
+        self.wakeup()
 
-
-
-    def _wake(self, i2c_bus):
+    def wakeup(self):
         """Wakes up THE ATECC608A from sleep or idle modes.
-        Returns 1 if device woke up from sleep/idle mode. 
-        :param busio i2c_bus: I2C bus connected to the ATECCx08A.
+        Returns True if device woke up from sleep/idle mode.
         """
-        while not i2c_bus.try_lock():
+        while not self._i2c_bus.try_lock():
             pass
-        print('bus unlocked!')
+        #print('i2c bus unlocked!')
         zero_bits = bytearray(2)
-        # i2c_bus.writeto(_REG_ATECC_ADDR, zero_bits, stop=False)
         try:
-            i2c_bus.writeto(_REG_ATECC_ADDR, zero_bits, stop=False)
-            # i2c_bus.writeto(_REG_ATECC_ADDR, bytes([b'\x00\x00\x00']), stop=False)
+            self._i2c_bus.writeto(0x0, zero_bits)
         except OSError:
-            pass # allow writes to ATECC_ADDR, ignore error
+            pass    # this may fail, that's ok - its just to wake up the chip!
         time.sleep(_TWLO_TIME)
-        # check for an i2c device
-        data = i2c_bus.scan()
-        print('I2C Addresses: ', data)
+        data = self._i2c_bus.scan()         # check for an i2c device
+        print('I2C Addresses: ', [hex(i) for i in data])
         if data[0] != 96:
             raise TypeError('ATECCx08 not found - please check your wiring!')
-        print('deiniting i2c bus...')
-        self.i2c_bus.deinit()
-        print('reiniting i2c bus...')
-        self.i2c_bus = busio.I2C(board.SCL, board.SDA, frequency = _NORMAL_CLK_FREQ)
-        self._device = I2CDevice(self.i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=False)
+        self._i2c_bus.unlock()
+
+        if not self._i2c_device:
+            self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=False)
+
+        # check if we are ready to read from
+        r = bytearray(1)
+        self._get_response(r)
+        if r[0] != 0x11:
+            raise RuntimeError("Failed to wakeup")
+
+
 
     def rev_number(self):
         """Returns the ATECC608As revision number
         """
         self._send_command(0x30, 0x00)
 
+
+    def _get_response(self, buf, length=None, retries=20):
+        if length is None:
+            length = len(buf)
+        response = bytearray(length+3)   # 1 byte header, 2 bytes CRC, len bytes data
+        with self._i2c_device as i2c:
+            for _ in range(retries):
+                try:
+                    i2c.readinto(response)
+                    break
+                except OSError:
+                    pass
+            else:
+                raise RuntimeError("Failed to read data from chip")
+        print([hex(i) for i in response])
+        crc = response[-2] | (response[-1] << 8)
+        crc2 = self.at_crc(response[0:2])
+        if crc != crc2:
+            raise RuntimeError("CRC check failure")
+        for i in range(length):
+            buf[i] = response[i+1]
 
     def _send_command(self, opcode, param_1, param_2=0x00, data = ''):
         """Sends a security command packet over i2c.
@@ -131,12 +154,12 @@ class ATECCx08A:
         :param byte param_2: The second parameter, can be two bytes.
         :param byte param_3 data: Optional remaining input data.
         """
-        # Show Args in REPL 
+        # Show Args in REPL
         print('Opcode: ', opcode)
         print('Param_1: ', param_1)
         print('Param_2: ', param_2)
         print('Data: ', data)
-        
+
         # assembling command packet
         command_packet = bytearray(8+len(data))
         print('Command Size: ', len(command_packet))
@@ -165,7 +188,7 @@ class ATECCx08A:
         # Command completion polling (6.2.2), (6.5)
         # the size of the group is determined by the command
         res_size = 3
-        retries = _RX_RETRIES 
+        retries = _RX_RETRIES
         while retries > 0:
           with self._device:
             self._device.readinto(self._BUFFER)
@@ -175,19 +198,19 @@ class ATECCx08A:
         print(self._BUFFER)
         print('returned!')
 
-    def at_crc(self, data, length):
-        if (data == 0 or length == 0):
+    def at_crc(self, data, length=None):
+        if length is None:
+            length = len(data)
+        if not data or not length:
             return 0
         polynom = 0x8005
-        crc = 0xffff
+        crc = 0x0
         for i in range(length):
-            d = data[i]
-            for b in range(8):
-                data_bit = 1 if d & 1 << b else 0
-                crc_bit = crc >> 15 & 0xff
-                crc = crc << 1 & 0xffff
+            b = data[i]
+            for shift in range(8):
+                data_bit = int(b & (1<<shift))
+                crc_bit = (crc >> 15) & 0x1
+                crc <<= 1
                 if data_bit != crc_bit:
-                    crc = crc ^ polynom & 0xffff
-        data[length] = crc & 0x00ff
-        data[length+1] = crc >> 8 & 0xff
-        return crc
+                    crc ^= polynom
+        return crc & 0xFFFF
