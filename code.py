@@ -26,4 +26,8 @@ print("Locked?", atecc.locked())
 
 print("Counter: ", atecc.counter(0))
 
-print(atecc.nonce())
+print(atecc.random())
+
+nonce_input = bytearray(20)
+nonce_input[0] = 0x05
+print(atecc.nonce(input=nonce_input))
