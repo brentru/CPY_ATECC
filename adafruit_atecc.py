@@ -91,7 +91,7 @@ class ATECCx08A:
         self._i2c_device = None
         self.wakeup()
         if not self._i2c_device:
-            self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=False)
+            self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR)
         self.idle()
         if (self.version() >> 8) not in (0x50, 0x60):
             raise RuntimeError("Failed to find 608 or 508 chip")
@@ -156,7 +156,47 @@ class ATECCx08A:
         print([hex(i) for i in config])
         return config[2] == 0x0 and config[3] == 0x00
 
-    #def random(self, maxrand):
+    # def hmac
+
+    # def nonce
+    def nonce(self, mode=0b0000000, input=0x00):
+        """Generates a nonce"""
+        self.wakeup()
+        self.idle()
+        self._send_command(0x16, mode, 0x00, "111")
+        nonce = bytearray(32)
+        self._get_response(nonce)
+        print(nonce)
+
+    #def gendig
+
+    def counter(self, counter=0, increment_counter=True):
+        """The Counter command reads
+        the binary count value from one of the two monotonic counters.
+        :param int counter: Counter to increment
+        :param bool increment_counter: Increment the value of the counter
+        """
+        self.wakeup()
+        self.idle()
+        counter= 0x00
+        if counter == 1:
+            counter = 0x01
+        if increment_counter:
+            self._send_command(0x24, 0x01, counter)
+        else:
+            self._send_command(0x24, 0x00, counter)
+        count = bytearray(4)
+        self._get_response(count)
+        print("count: ", count)
+        return count
+
+    def random(self):
+        self.wakeup()
+        self.idle()
+        self._send_command(0x1B, 0x01)
+        random = bytearray(32)
+        self._get_response(random)
+        print('Returned: : ', random)
 
 
     def _read(self, zone, address, buffer):
@@ -171,7 +211,7 @@ class ATECCx08A:
         time.sleep(0.001)
         self.idle()
 
-    def _send_command(self, opcode, param_1, param_2=0x00, data = ''):
+    def _send_command(self, opcode, param_1, param_2=0x00, data=''):
         """Sends a security command packet over i2c.
         :param byte opcode: The command Opcode
         :param byte param_1: The first parameter
