@@ -174,7 +174,7 @@ class ATECCx08A:
         """
         self.wakeup()
         self.idle()
-        if mode == 0x00 or 0x01 and zero == 0x00:
+        if mode == 0x00 or mode == 0x01:
             if zero == 0x00:
                 assert len(data) == 20, "Data value must be 20 bytes long."
             self._send_command(OP_NONCE, mode, zero, data)
@@ -188,8 +188,11 @@ class ATECCx08A:
             calculated_nonce = bytearray(1)
         else:
             raise RuntimeError("Invalid mode specified!")
+        time.sleep(0.029)
         self._get_response(calculated_nonce)
-        print(calculated_nonce)
+        if mode == 0x03:
+            # Successful pass-thru nonce should return "\x00"
+            assert calculated_nonce[0] == 0x00, "Incorrectly calculated nonce in pass-thru mode"
         return calculated_nonce
 
 
@@ -201,6 +204,7 @@ class ATECCx08A:
         :param int counter: Device's counter to increment.
         :param bool increment_counter: Increments the value of the counter specified.
         """
+        count = bytearray(4)
         self.wakeup()
         self.idle()
         counter= 0x00
@@ -210,7 +214,6 @@ class ATECCx08A:
             self._send_command(OP_COUNTER, 0x01, counter)
         else:
             self._send_command(OP_COUNTER, 0x00, counter)
-        count = bytearray(4)
         self._get_response(count)
         self.version()
         return count
@@ -239,6 +242,7 @@ class ATECCx08A:
         self._send_command(0x47, 0b00000001, 0x40, message_bytes)
         self._send_command(0x47, 0x00)
         resp = bytearray(32)
+        time.sleep(0.23)
         self._get_response(resp)
 
 

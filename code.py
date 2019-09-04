@@ -15,9 +15,15 @@ print("Generating Random Number...")
 random_num = atecc.random()
 print("Random Number[0]: ", random_num[0])
 
-# Generate a nonce
-print("Generating Nonce...")
+# Generate a nonce, mode is 1
 input_data = bytearray(20)
-input_data[3] = 0x03
+input_data[1] = 0x01
+print("Generating Nonce using input_data: ", input_data)
 nonce_value = atecc.nonce(input_data)
 print("Nonce[0]: ", nonce_value[0])
+
+# Generate a nonce in passthru mode
+input_data = bytearray(32)
+input_data[1] = 0x01
+print("Generating Nonce using input_data: ", input_data)
+nonce_value = atecc.nonce(input_data, 0x03)
