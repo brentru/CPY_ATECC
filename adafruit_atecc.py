@@ -36,8 +36,8 @@ Implementation Notes
 * Adafruit CircuitPython firmware for the supported boards:
   https://github.com/adafruit/circuitpython/releases
 
-
- * Adafruit's Bus Device library: https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
+ * Adafruit's Bus Device library:
+  https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
 """
 import time
 import board
@@ -53,7 +53,8 @@ _REG_ATECC_ADDR = const(0xC0)
 _REG_ATECC_DEVICE_ADDR = _REG_ATECC_ADDR >> 1
 
 # Version Registers
-_REG_REVISION = const(0x30) # device version register address
+# device version register address
+_REG_REVISION = const(0x30)
 _ATECC_508_VER = const(0x50)
 _ATECC_608_VER = const(0x60)
 
@@ -62,19 +63,26 @@ _NORMAL_CLK_FREQ = 1000000 # regular clock speed
 _WAKE_CLK_FREQ = 100000 # stretched clock for wakeup
 _TWLO_TIME = 6e-5 # TWlo, in microseconds
 
-# Status/Error Codes (9-3)
-STATUS_SUCCESS = const(0x00)
-STATUS_WAKE = const(0x11)
-ERROR_CHECKMAC = const(0x01)
-ERROR_PARSE = const(0x03)
-ERROR_ECC = const(0x05)
-ERROR_EXEC = const(0x0F)
-ERROR_WATCHDOG = const(0xEE)
-ERROR_CRC = const(0xFF)
-
-
 # Constants
 _RX_RETRIES = const(20)
+
+# Command Opcodes (9-1-3)
+OP_COUNTER = const(0x24)
+OP_INFO = const(0x30)
+OP_NONCE = const(0x16)
+OP_RANDOM = const(0x1B)
+OP_SHA = const(0x47)
+
+# Status/Error Codes (9-3)
+STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
+                        const(0x01), "CheckMac/Verify sent, input does not match expected value.",
+                        const(0x03), "Parse Error - Illegal parameters provided.",
+                        const(0x05), "Computation error occured during ECC processing. Please retry.",
+                        const(0x0F), "Execution Error - Command could not be executed by the device in its current state",
+                        const(0x11), "ATECC RX'd Wake token.",
+                        const(0xEE), "Watchdog About to Expire.",
+                        const(0xFF), "CRC or Communication Error"}
+
 
 class ATECCx08A:
     _BUFFER = bytearray(2)
@@ -93,8 +101,8 @@ class ATECCx08A:
         if not self._i2c_device:
             self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR)
         self.idle()
-        if (self.version() >> 8) not in (0x50, 0x60):
-            raise RuntimeError("Failed to find 608 or 508 chip")
+        if (self.version() >> 8) not in (_ATECC_508_VER, _ATECC_608_VER):
+            raise RuntimeError("Failed to find 608 or 508 chip. Please check your wiring.")
 
     def wakeup(self):
         """Wakes up THE ATECC608A from sleep or idle modes.
@@ -120,7 +128,7 @@ class ATECCx08A:
         self._i2c_bus.unlock()
 
         if not self._i2c_device:
-            self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=False)
+            self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=True)
 
         # check if we are ready to read from
         r = bytearray(1)
@@ -145,36 +153,37 @@ class ATECCx08A:
         """
         self.wakeup()
         self.idle()
-        self._send_command(0x30, 0x00)
+        self._send_command(OP_INFO, 0x00)
         vers = bytearray(4)
         self._get_response(vers)
+        self.idle()
         return (vers[2] << 8) | vers[3]
 
     def locked(self):
         config = bytearray(4)
         self._read(0, 0x15, config)
-        print([hex(i) for i in config])
         return config[2] == 0x0 and config[3] == 0x00
 
-    # def hmac
 
-    # def nonce
-    def nonce(self, mode=0b0000000, input=0x00):
+    def nonce(self, input, mode=0x0):
         """Generates a nonce"""
         self.wakeup()
         self.idle()
-        self._send_command(0x16, mode, 0x00, "111")
-        nonce = bytearray(32)
+        nonce = bytearray(33)
+        if mode == 0x3:
+            assert len(input) == 32, "This mode requires an input size of 32 bytes."
+            nonce = bytearray(1) # single byte with a value of zero
+        self._send_command(0x16, mode, 0x0, input)
+
         self._get_response(nonce)
         print(nonce)
 
-    #def gendig
-
     def counter(self, counter=0, increment_counter=True):
-        """The Counter command reads
-        the binary count value from one of the two monotonic counters.
-        :param int counter: Counter to increment
-        :param bool increment_counter: Increment the value of the counter
+        """Reads the binary count value from one of the two monotonic
+        counters located on the device within the configuration zone.
+        The maximum value that the counter may have is 2,097,151.
+        :param int counter: Device's counter to increment.
+        :param bool increment_counter: Increments the value of the counter specified.
         """
         self.wakeup()
         self.idle()
@@ -182,21 +191,43 @@ class ATECCx08A:
         if counter == 1:
             counter = 0x01
         if increment_counter:
-            self._send_command(0x24, 0x01, counter)
+            self._send_command(OP_COUNTER, 0x01, counter)
         else:
-            self._send_command(0x24, 0x00, counter)
+            self._send_command(OP_COUNTER, 0x00, counter)
         count = bytearray(4)
         self._get_response(count)
-        print("count: ", count)
+        self.version()
         return count
 
-    def random(self):
+
+    def random(self, max_num=1):
+        """Generates a random number for use by the system.
+        """
         self.wakeup()
         self.idle()
-        self._send_command(0x1B, 0x01)
-        random = bytearray(32)
-        self._get_response(random)
-        print('Returned: : ', random)
+
+        print("sending random cmd..")
+        while max_num:
+            self._send_command(OP_RANDOM, 0x00, 0x0000)
+            time.sleep(0.23)
+            resp = bytearray(32)
+            self._get_response(resp)
+            max_num-=1
+        print(len(resp))
+        print('Returned: : ', resp)
+
+    def sha(self):
+        self.wakeup()
+        self.idle()
+        # Start, length is zero
+        self._send_command(0x47, 0x00, 0x00)
+        # Update, with message
+        message_bytes = bytearray(63)
+        message_bytes[60] = 0x02
+        self._send_command(0x47, 0b00000001, 0x40, message_bytes)
+        self._send_command(0x47, 0x00)
+        resp = bytearray(32)
+        self._get_response(resp)
 
 
     def _read(self, zone, address, buffer):
@@ -211,7 +242,7 @@ class ATECCx08A:
         time.sleep(0.001)
         self.idle()
 
-    def _send_command(self, opcode, param_1, param_2=0x00, data=''):
+    def _send_command(self, opcode, param_1, param_2=0x00, data = ''):
         """Sends a security command packet over i2c.
         :param byte opcode: The command Opcode
         :param byte param_1: The first parameter
@@ -231,6 +262,7 @@ class ATECCx08A:
         command_packet[5] = param_2 >> 8
         for i,c in enumerate(data):
             command_packet[6+i] = c
+        print("Command Packet Sz: ", len(command_packet))
         print("\tSending:", [hex(i) for i in command_packet])
         # Checksum, CRC16 verification
         crc = self.at_crc(command_packet[1:-2])
@@ -248,6 +280,7 @@ class ATECCx08A:
 
 
     def _get_response(self, buf, length=None, retries=20):
+        self.wakeup()
         if length is None:
             length = len(buf)
         response = bytearray(length+3)   # 1 byte header, 2 bytes CRC, len bytes data
@@ -255,6 +288,7 @@ class ATECCx08A:
             for _ in range(retries):
                 try:
                     i2c.readinto(response)
+                    print(response)
                     break
                 except OSError:
                     pass
@@ -265,7 +299,7 @@ class ATECCx08A:
         crc2 = self.at_crc(response[0:-2])
         #print(hex(crc2))
         if crc != crc2:
-            raise RuntimeError("CRC check failure")
+            raise RuntimeError(STATUS_ERROR_CODES[0xFF])
         for i in range(length):
             buf[i] = response[i+1]
         return response[1]
