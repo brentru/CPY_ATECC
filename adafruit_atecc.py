@@ -162,6 +162,31 @@ class ATECCx08A:
         self._read(0, 0x15, config)
         return config[2] == 0x0 and config[3] == 0x00
 
+    # TODO: This method is UNTESTED!
+    def lock(self, lock_config=False, lock_data_otp=False,
+                lock_data=False):
+        """Locks the configuration and/or data and OTP
+        zones
+        :param bool lock_config: Lock the configuration zone.
+        :param bool lock_data_otp: Lock the data and OTP zones.
+        :param bool lock_data: Lock a single slot in the data zone
+        """
+        self.wakeup()
+        self.idle()
+        if lock_config:
+            mode = 0x00
+        elif lock_data_otp:
+            mode = 0x01
+        elif lock_data:
+            mode = 0x02
+        else:
+            raise RuntimeError("Illegal slot value.")
+        self._send_command(0x17, mode)
+        res = bytearray(1)
+        self._get_response(res)
+        assert res[0] = 0x00, "Failed locking ATECC!"
+        return res
+
     def info(self, mode):
         """Access to statatic or dynamic information based on the
         value of the mode.
@@ -240,70 +265,6 @@ class ATECCx08A:
         self.idle()
         return resp
 
-    # TODO: This implementation is not complete
-    def derive_key(self):
-        """Derive a target key value from the target
-        or a parent key.
-        """
-        # Run nonce command in passthru mode
-        input_data = bytearray(32)
-        input_data[1] = 0x01
-        atecc.nonce(input_data, 0x03)
-
-    def mac(self, mode, key_id, challenge):
-        """Computes a SHA-256 digest of a key stored on the device.
-        Returns the digest of the message.
-        """
-        self.wakeup()
-        self.idle()
-        # Run Nonce once to load input challenge
-        data = bytearray(20)
-        nonce_val = self.nonce(data)
-        # Optionally run GenDig to combine 1+ EEPROM locations with the nonce
-        # TODO: Create a GenDig method
-        # Run the mac command to combine step 1 (optionally, step 2) and the EEPROM key
-        sha_digest = bytearray(32)
-        self._send_command(OP_MAC, mode, key_id, challenge)
-        self._get_response(sha_digest)
-        return sha_digest
-
-    # HMAC
-    # Note: 2-4 generate secret keys, 
-    # we need to do this before hmac_start is run with the key
-    def hmac_start(self, key=0):
-        """Initializes the HMAC calculation engine
-        and the SHA context in memory.
-        :param int key: Stored key for SHA operations.
-        """
-        status = bytearray(1)
-        self.wakeup()
-        self.idle()
-        self._send_command(OP_SHA, 0x04, key)
-        time.sleep(0.09)
-        self._get_response(status)
-        assert status[0] == 0x00, "Error during HMAC Start"
-        return status
-
-    def hmac_update(self, message):
-        """Appends bytes to the message. Can be repeatedly called.
-        :param bytes message: bytes-like object
-        """
-        status = bytearray(1)
-        status = self.sha_update(message)
-        return status
-
-    def hmac_digest(self):
-        """Returns the digest of the data passed to the
-        hmac_update method so far.
-        """
-        self.wakeup()
-        self.idle()
-        resp = bytearray(32)
-        self._send_command(OP_SHA, 0x05)
-        self._get_response(resp)
-        assert len(resp) == 32, "SHA response length does not match expected length."
-        return resp
-
     # SHA-256
     def sha_start(self):
         """Initializes the SHA-256 calculation engine
@@ -343,6 +304,71 @@ class ATECCx08A:
         self._get_response(resp)
         assert len(resp) == 32, "SHA response length does not match expected length."
         return resp
+
+
+    # HMAC
+    # Note: 2-4 generate secret keys, 
+    # we need to do this before hmac_start is run with the key
+    def hmac_start(self, key=0):
+        """Initializes the HMAC calculation engine
+        and the SHA context in memory.
+        :param int key: Stored key for SHA operations.
+        """
+        status = bytearray(1)
+        self.wakeup()
+        self.idle()
+        self._send_command(OP_SHA, 0x04, key)
+        time.sleep(0.09)
+        self._get_response(status)
+        assert status[0] == 0x00, "Error during HMAC Start"
+        return status
+
+    def hmac_update(self, message):
+        """Appends bytes to the message. Can be repeatedly called.
+        :param bytes message: bytes-like object
+        """
+        status = bytearray(1)
+        status = self.sha_update(message)
+        return status
+
+    def hmac_digest(self):
+        """Returns the digest of the data passed to the
+        hmac_update method so far.
+        """
+        self.wakeup()
+        self.idle()
+        resp = bytearray(32)
+        self._send_command(OP_SHA, 0x05)
+        self._get_response(resp)
+        assert len(resp) == 32, "SHA response length does not match expected length."
+        return resp
+
+    # TODO: This implementation is not complete
+    def derive_key(self):
+        """Derive a target key value from the target
+        or a parent key.
+        """
+        # Run nonce command in passthru mode
+        input_data = bytearray(32)
+        input_data[1] = 0x01
+        atecc.nonce(input_data, 0x03)
+
+    def mac(self, mode, key_id, challenge):
+        """Computes a SHA-256 digest of a key stored on the device.
+        Returns the digest of the message.
+        """
+        self.wakeup()
+        self.idle()
+        # Run Nonce once to load input challenge
+        data = bytearray(20)
+        nonce_val = self.nonce(data)
+        # Optionally run GenDig to combine 1+ EEPROM locations with the nonce
+        # TODO: Create a GenDig method
+        # Run the mac command to combine step 1 (optionally, step 2) and the EEPROM key
+        sha_digest = bytearray(32)
+        self._send_command(OP_MAC, mode, key_id, challenge)
+        self._get_response(sha_digest)
+        return sha_digest
 
     def _read(self, zone, address, buffer):
         self.wakeup()
