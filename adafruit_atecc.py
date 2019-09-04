@@ -153,10 +153,8 @@ class ATECCx08A:
         """
         self.wakeup()
         self.idle()
-        self._send_command(OP_INFO, 0x00)
         vers = bytearray(4)
-        self._get_response(vers)
-        self.idle()
+        vers = self.info(0x00)
         return (vers[2] << 8) | vers[3]
 
     def locked(self):
@@ -165,12 +163,25 @@ class ATECCx08A:
         return config[2] == 0x0 and config[3] == 0x00
 
 
+    def info(self, mode):
+        """Access to statatic or dynamic information based on the
+        value of the mode.
+        :param int mode: Mode encoding, see Table 9-26.
+        """
+        self.wakeup()
+        self.idle()
+        self._send_command(OP_INFO, mode)
+        info_out = bytearray(4)
+        self._get_response(info_out)
+        return info_out
+
+
     def nonce(self, data, mode=0, zero=0x0000):
         """Generates a nonce by combining internally generated random number
         with an input value.
         :param bytearray data: Input value from system or external.
         :param int mode: Controls the internal RNG and seed mechanism.
-        :param int zero: Param2, see table 9-35.
+        :param int zero: Param2, see Table 9-35.
         """
         self.wakeup()
         self.idle()
