@@ -27,3 +27,10 @@ input_data = bytearray(32)
 input_data[1] = 0x01
 print("Generating Nonce using input_data: ", input_data)
 nonce_value = atecc.nonce(input_data, 0x03)
+
+print("Generating SHA256 digest...")
+calculated_sha = bytearray(64)
+atecc.sha_start()
+atecc.sha_update(b"hello")
+calculated_sha = atecc.sha_digest()
+print("Calculated SHA256 Digest: ", calculated_sha)
