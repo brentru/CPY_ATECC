@@ -34,3 +34,7 @@ atecc.sha_start()
 atecc.sha_update(b"hello")
 calculated_sha = atecc.sha_digest()
 print("Calculated SHA256 Digest: ", calculated_sha)
+
+print("Generating HMAC digest...")
+calculated_hmac = bytearray(64)
+secret_hmac_key = b"secret-key"

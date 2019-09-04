@@ -72,6 +72,7 @@ OP_INFO = const(0x30)
 OP_NONCE = const(0x16)
 OP_RANDOM = const(0x1B)
 OP_SHA = const(0x47)
+OP_MAC = const(0x08)
 
 # Status/Error Codes (9-3)
 STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
@@ -205,7 +206,6 @@ class ATECCx08A:
         return calculated_nonce
 
 
-
     def counter(self, counter=0, increment_counter=True):
         """Reads the binary count value from one of the two monotonic
         counters located on the device within the configuration zone.
@@ -240,6 +240,71 @@ class ATECCx08A:
         self.idle()
         return resp
 
+    # TODO: This implementation is not complete
+    def derive_key(self):
+        """Derive a target key value from the target
+        or a parent key.
+        """
+        # Run nonce command in passthru mode
+        input_data = bytearray(32)
+        input_data[1] = 0x01
+        atecc.nonce(input_data, 0x03)
+
+    def mac(self, mode, key_id, challenge):
+        """Computes a SHA-256 digest of a key stored on the device.
+        Returns the digest of the message.
+        """
+        self.wakeup()
+        self.idle()
+        # Run Nonce once to load input challenge
+        data = bytearray(20)
+        nonce_val = self.nonce(data)
+        # Optionally run GenDig to combine 1+ EEPROM locations with the nonce
+        # TODO: Create a GenDig method
+        # Run the mac command to combine step 1 (optionally, step 2) and the EEPROM key
+        sha_digest = bytearray(32)
+        self._send_command(OP_MAC, mode, key_id, challenge)
+        self._get_response(sha_digest)
+        return sha_digest
+
+    # HMAC
+    # Note: 2-4 generate secret keys, 
+    # we need to do this before hmac_start is run with the key
+    def hmac_start(self, key=0):
+        """Initializes the HMAC calculation engine
+        and the SHA context in memory.
+        :param int key: Stored key for SHA operations.
+        """
+        status = bytearray(1)
+        self.wakeup()
+        self.idle()
+        self._send_command(OP_SHA, 0x04, key)
+        time.sleep(0.09)
+        self._get_response(status)
+        assert status[0] == 0x00, "Error during HMAC Start"
+        return status
+
+    def hmac_update(self, message):
+        """Appends bytes to the message. Can be repeatedly called.
+        :param bytes message: bytes-like object
+        """
+        status = bytearray(1)
+        status = self.sha_update(message)
+        return status
+
+    def hmac_digest(self):
+        """Returns the digest of the data passed to the
+        hmac_update method so far.
+        """
+        self.wakeup()
+        self.idle()
+        resp = bytearray(32)
+        self._send_command(OP_SHA, 0x05)
+        self._get_response(resp)
+        assert len(resp) == 32, "SHA response length does not match expected length."
+        return resp
+
+    # SHA-256
     def sha_start(self):
         """Initializes the SHA-256 calculation engine
         and the SHA context in memory.
@@ -247,19 +312,19 @@ class ATECCx08A:
         status = bytearray(1)
         self.wakeup()
         self.idle()
-        # Start
         self._send_command(OP_SHA, 0x00)
         time.sleep(0.09)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Start"
         return status
-    
+
     def sha_update(self, message):
         """Appends bytes to the message. Can be repeatedly called.
         :param bytes message: bytes-like object
         """
+        self.wakeup()
+        self.idle()
         status = bytearray(1)
-        # Update
         self._send_command(OP_SHA, 0x01, len(message), message)
         time.sleep(0.09)
         self._get_response(status)
@@ -268,8 +333,10 @@ class ATECCx08A:
     
     def sha_digest(self):
         """Returns the digest of the data passed to the
-        sha_update() method so far.
+        sha_update method so far.
         """
+        self.wakeup()
+        self.idle()
         resp = bytearray(32)
         self._send_command(OP_SHA, 0x02)
         time.sleep(0.09)
