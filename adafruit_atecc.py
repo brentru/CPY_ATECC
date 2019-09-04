@@ -60,8 +60,8 @@ _ATECC_608_VER = const(0x60)
 
 # Clock constants
 _NORMAL_CLK_FREQ = 1000000 # regular clock speed
-_WAKE_CLK_FREQ = 100000 # stretched clock for wakeup
-_TWLO_TIME = 6e-5 # TWlo, in microseconds
+_WAKE_CLK_FREQ = 100000    # slower clock speed
+_TWLO_TIME = 6e-5          # TWlo, in microseconds
 
 # Constants
 _RX_RETRIES = const(20)
@@ -128,7 +128,7 @@ class ATECCx08A:
         self._i2c_bus.unlock()
 
         if not self._i2c_device:
-            self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=True)
+            self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=False)
 
         # check if we are ready to read from
         r = bytearray(1)
@@ -200,21 +200,17 @@ class ATECCx08A:
         return count
 
 
-    def random(self, max_num=1):
+    def random(self):
         """Generates a random number for use by the system.
         """
         self.wakeup()
         self.idle()
-
-        print("sending random cmd..")
-        while max_num:
-            self._send_command(OP_RANDOM, 0x00, 0x0000)
-            time.sleep(0.23)
-            resp = bytearray(32)
-            self._get_response(resp)
-            max_num-=1
-        print(len(resp))
-        print('Returned: : ', resp)
+        self._send_command(OP_RANDOM, 0x00, 0x0000)
+        time.sleep(0.23)
+        resp = bytearray(32)
+        self._get_response(resp)
+        self.idle()
+        return resp
 
     def sha(self):
         self.wakeup()
@@ -262,8 +258,8 @@ class ATECCx08A:
         command_packet[5] = param_2 >> 8
         for i,c in enumerate(data):
             command_packet[6+i] = c
-        print("Command Packet Sz: ", len(command_packet))
-        print("\tSending:", [hex(i) for i in command_packet])
+        #print("Command Packet Sz: ", len(command_packet))
+        #print("\tSending:", [hex(i) for i in command_packet])
         # Checksum, CRC16 verification
         crc = self.at_crc(command_packet[1:-2])
         #print('Calculated CRC: ', hex(crc))
@@ -288,13 +284,13 @@ class ATECCx08A:
             for _ in range(retries):
                 try:
                     i2c.readinto(response)
-                    print(response)
+                    #print(response)
                     break
                 except OSError:
                     pass
             else:
                 raise RuntimeError("Failed to read data from chip")
-        print("\tReceived: ", [hex(i) for i in response])
+        #print("\tReceived: ", [hex(i) for i in response])
         crc = response[-2] | (response[-1] << 8)
         crc2 = self.at_crc(response[0:-2])
         #print(hex(crc2))
@@ -303,6 +299,7 @@ class ATECCx08A:
         for i in range(length):
             buf[i] = response[i+1]
         return response[1]
+
 
     def at_crc(self, data, length=None):
         if length is None:
