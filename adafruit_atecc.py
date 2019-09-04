@@ -240,8 +240,9 @@ class ATECCx08A:
         self.idle()
         return resp
 
-    def sha(self, message, mode=0x00):
-        """Computes a SHA-256 or HMAC digest.
+    def sha_start(self):
+        """Initializes the SHA-256 calculation engine
+        and the SHA context in memory.
         """
         status = bytearray(1)
         self.wakeup()
@@ -251,19 +252,29 @@ class ATECCx08A:
         time.sleep(0.09)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Start"
+        return status
+    
+    def sha_update(self, message):
+        """Appends bytes to the message. Can be repeatedly called.
+        :param bytes message: bytes-like object
+        """
+        status = bytearray(1)
         # Update
         self._send_command(OP_SHA, 0x01, len(message), message)
         time.sleep(0.09)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Update"
-        # End
+        return status
+    
+    def sha_digest(self):
+        """Returns the digest of the data passed to the
+        sha_update() method so far.
+        """
         resp = bytearray(32)
         self._send_command(OP_SHA, 0x02)
         time.sleep(0.09)
         self._get_response(resp)
-        print(resp)
         assert len(resp) == 32, "SHA response length does not match expected length."
-        print(resp)
         return resp
 
     def _read(self, zone, address, buffer):
