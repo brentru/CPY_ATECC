@@ -126,10 +126,8 @@ class ATECCx08A:
         if data[0] != 96:
             raise TypeError('ATECCx08 not found - please check your wiring!')
         self._i2c_bus.unlock()
-
         if not self._i2c_device:
             self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=False)
-
         # check if we are ready to read from
         r = bytearray(1)
         self._get_response(r)
@@ -157,11 +155,11 @@ class ATECCx08A:
         vers = self.info(0x00)
         return (vers[2] << 8) | vers[3]
 
+    @property
     def locked(self):
         config = bytearray(4)
         self._read(0, 0x15, config)
         return config[2] == 0x0 and config[3] == 0x00
-
 
     def info(self, mode):
         """Access to statatic or dynamic information based on the
@@ -242,20 +240,31 @@ class ATECCx08A:
         self.idle()
         return resp
 
-    def sha(self):
+    def sha(self, message, mode=0x00):
+        """Computes a SHA-256 or HMAC digest.
+        """
+        status = bytearray(1)
         self.wakeup()
         self.idle()
-        # Start, length is zero
-        self._send_command(0x47, 0x00, 0x00)
-        # Update, with message
-        message_bytes = bytearray(63)
-        message_bytes[60] = 0x02
-        self._send_command(0x47, 0b00000001, 0x40, message_bytes)
-        self._send_command(0x47, 0x00)
+        # Start
+        self._send_command(OP_SHA, 0x00)
+        time.sleep(0.09)
+        self._get_response(status)
+        assert status[0] == 0x00, "Error during SHA Start"
+        # Update
+        self._send_command(OP_SHA, 0x01, len(message), message)
+        time.sleep(0.09)
+        self._get_response(status)
+        assert status[0] == 0x00, "Error during SHA Update"
+        # End
         resp = bytearray(32)
-        time.sleep(0.23)
+        self._send_command(OP_SHA, 0x02)
+        time.sleep(0.09)
         self._get_response(resp)
-
+        print(resp)
+        assert len(resp) == 32, "SHA response length does not match expected length."
+        print(resp)
+        return resp
 
     def _read(self, zone, address, buffer):
         self.wakeup()
