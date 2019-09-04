@@ -165,18 +165,34 @@ class ATECCx08A:
         return config[2] == 0x0 and config[3] == 0x00
 
 
-    def nonce(self, input, mode=0x0):
-        """Generates a nonce"""
+    def nonce(self, data, mode=0, zero=0x0000):
+        """Generates a nonce by combining internally generated random number
+        with an input value.
+        :param bytearray data: Input value from system or external.
+        :param int mode: Controls the internal RNG and seed mechanism.
+        :param int zero: Param2, see table 9-35.
+        """
         self.wakeup()
         self.idle()
-        nonce = bytearray(33)
-        if mode == 0x3:
-            assert len(input) == 32, "This mode requires an input size of 32 bytes."
-            nonce = bytearray(1) # single byte with a value of zero
-        self._send_command(0x16, mode, 0x0, input)
+        if mode == 0x00 or 0x01 and zero == 0x00:
+            if zero == 0x00:
+                assert len(data) == 20, "Data value must be 20 bytes long."
+            self._send_command(OP_NONCE, mode, zero, data)
+            # RNG output
+            calculated_nonce = bytearray(32)
+        elif mode == 0x03:
+            # Operating in Nonce pass-through mode
+            assert len(data) == 32, "Data value must be 32 bytes long."
+            self._send_command(OP_NONCE, mode, zero, data)
+            # Single byte with zero if mode is 0x03
+            calculated_nonce = bytearray(1)
+        else:
+            raise RuntimeError("Invalid mode specified!")
+        self._get_response(calculated_nonce)
+        print(calculated_nonce)
+        return calculated_nonce
 
-        self._get_response(nonce)
-        print(nonce)
+
 
     def counter(self, counter=0, increment_counter=True):
         """Reads the binary count value from one of the two monotonic
