@@ -397,6 +397,19 @@ class ATECC:
         self._get_response(sha_digest)
         return sha_digest
 
+    def _write(self, zone, address, buffer):
+        self.wakeup()
+        if len(buffer) not in (4, 32):
+            raise RuntimeError("Only 4 and 32 byte writes supported")
+        if len(buffer) == 32:
+            zone |= 0x80
+        self._send_command(0x12, zone, address, buffer)
+        time.sleep(0.026)
+        self._get_response(buffer)
+        print('Write response:', buffer)
+        time.sleep(0.001)
+        self.idle()
+
     def _read(self, zone, address, buffer):
         self.wakeup()
         if len(buffer) not in (4, 32):
