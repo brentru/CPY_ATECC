@@ -249,6 +249,7 @@ class ATECC:
         """Returns if the ATECC is locked."""
         config = bytearray(4)
         self._read(0, 0x15, config)
+        time.sleep(0.001)
         return config[2] == 0x0 and config[3] == 0x00
 
     @property
@@ -260,12 +261,15 @@ class ATECC:
         # SN<0:3>
         self._read(0, 0x00, temp_sn)
         serial_num[0:4] = temp_sn
+        time.sleep(0.001)
         # SN<4:8>
         self._read(0, 0x02, temp_sn)
         serial_num[4:8] = temp_sn
+        time.sleep(0.001)
         # Append Rev
         self._read(0, 0x03, temp_sn)
         serial_num[8] = temp_sn[0]
+        time.sleep(0.001)
         # neaten up the serial for printing
         serial_num = hexlify(serial_num).decode("utf-8")
         serial_num = str(serial_num).upper()
@@ -303,6 +307,7 @@ class ATECC:
         self.wakeup()
         self.idle()
         self._send_command(OP_INFO, mode)
+        time.sleep(0.001)
         info_out = bytearray(4)
         self._get_response(info_out)
         return info_out
@@ -330,7 +335,7 @@ class ATECC:
             calculated_nonce = bytearray(1)
         else:
             raise RuntimeError("Invalid mode specified!")
-        time.sleep(0.029)
+        time.sleep(0.007)
         self._get_response(calculated_nonce)
         if mode == 0x03:
             # Successful pass-thru nonce should return "\x00"
@@ -355,6 +360,7 @@ class ATECC:
             self._send_command(OP_COUNTER, 0x01, counter)
         else:
             self._send_command(OP_COUNTER, 0x00, counter)
+        time.sleep(0.020)
         self._get_response(count)
         self.version()
         return count
@@ -366,7 +372,7 @@ class ATECC:
         self.wakeup()
         self.idle()
         self._send_command(OP_RANDOM, 0x00, 0x0000)
-        time.sleep(0.23)
+        time.sleep(0.023)
         resp = bytearray(32)
         self._get_response(resp)
         self.idle()
