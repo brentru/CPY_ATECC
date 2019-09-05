@@ -38,12 +38,17 @@ Implementation Notes
 
  * Adafruit's Bus Device library:
   https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
+
+ * Adafruit's binascii library:
+  https://github.com/adafruit/Adafruit_CircuitPython_binascii
+
 """
 import time
 import board
 from micropython import const
 import busio
 from adafruit_bus_device.i2c_device import I2CDevice
+from adafruit_binascii import hexlify
 
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/Circuitpython_CircuitPython_CircuitPython_CryptoAuth.git"
@@ -86,7 +91,6 @@ STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
 
 
 class ATECC:
-    _BUFFER = bytearray(2)
     """
     CircuitPython interface for ATECCx08A Crypto Co-Processor Devices.
     """
@@ -165,7 +169,23 @@ class ATECC:
     @property
     def serial_number(self):
         """Returns the ATECC's serial number."""
-        raise NotImplementedError("Serial_Number not implemented.")
+        serial_num = bytearray(9)
+        # 4-byte reads only
+        temp_sn = bytearray(4)
+        # SN<0:3>
+        self._read(0, 0x00, temp_sn)
+        serial_num[0:4] = temp_sn
+        # SN<4:8>
+        self._read(0, 0x02, temp_sn)
+        serial_num[4:8] = temp_sn
+        # Append Rev
+        self._read(0, 0x03, temp_sn)
+        serial_num[8] = temp_sn[0]
+        # neaten up the serial for printing
+        serial_num = hexlify(serial_num).decode("utf-8")
+        serial_num = str(serial_num).upper()
+        return serial_num
+
 
     # TODO: This method is UNTESTED!
     def lock(self, lock_config=False, lock_data_otp=False,
