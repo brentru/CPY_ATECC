@@ -8,7 +8,7 @@ i2c = busio.I2C(board.SCL, board.SDA,
                 frequency=adafruit_atecc._WAKE_CLK_FREQ)
 
 # Initialize an atecc object
-atecc = adafruit_atecc.ATECCx08A(i2c)
+atecc = adafruit_atecc.ATECC(i2c)
 
 # Generate random number
 print("Generating Random Number...")

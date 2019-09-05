@@ -85,7 +85,7 @@ STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
                         const(0xFF), "CRC or Communication Error"}
 
 
-class ATECCx08A:
+class ATECC:
     _BUFFER = bytearray(2)
     """
     CircuitPython interface for ATECCx08A Crypto Co-Processor Devices.
@@ -148,8 +148,7 @@ class ATECCx08A:
         time.sleep(0.001)
 
     def version(self):
-        """Returns the ATECC608As revision number
-        """
+        """Returns the ATECC608As revision number"""
         self.wakeup()
         self.idle()
         vers = bytearray(4)
@@ -158,9 +157,15 @@ class ATECCx08A:
 
     @property
     def locked(self):
+        """Returns if the ATECC is locked."""
         config = bytearray(4)
         self._read(0, 0x15, config)
         return config[2] == 0x0 and config[3] == 0x00
+
+    @property
+    def serial_number(self):
+        """Returns the ATECC's serial number."""
+        raise NotImplementedError("Serial_Number not implemented.")
 
     # TODO: This method is UNTESTED!
     def lock(self, lock_config=False, lock_data_otp=False,
@@ -184,7 +189,7 @@ class ATECCx08A:
         self._send_command(0x17, mode)
         res = bytearray(1)
         self._get_response(res)
-        assert res[0] = 0x00, "Failed locking ATECC!"
+        assert res[0] == 0x00, "Failed locking ATECC!"
         return res
 
     def info(self, mode):
@@ -265,10 +270,11 @@ class ATECCx08A:
         self.idle()
         return resp
 
-    # SHA-256
+    # SHA-256 methods, similar to CPython HashLib methods.
     def sha_start(self):
         """Initializes the SHA-256 calculation engine
         and the SHA context in memory.
+        This method MUST be called before sha_update or sha_digest
         """
         status = bytearray(1)
         self.wakeup()
