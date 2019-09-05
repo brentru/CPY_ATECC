@@ -30,12 +30,12 @@ print("Serial Number: ", atecc.serial_number)
 if not atecc.locked:
     if not LOCK_ATECC:
         raise RuntimeError("The ATECC is not locked, set LOCK_ATECC to True in your code to unlock it.")
+
+    print("Writing default configuration to the device...")
+    atecc.write_config(adafruit_atecc.CFG_TLS)
     print("Locking ATECC module...")
     # lock configuration zone
     atecc.lock(lock_config=True)
     # lock data and otp zones
     atecc.lock(lock_data_otp=True)
-
-#TODO: Write default TLS config.
-
-
+    print("ATECC locked!")

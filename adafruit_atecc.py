@@ -91,7 +91,7 @@ STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
                         const(0xFF), "CRC or Communication Error"}
 
 # Default TLS Configuration
-CFG_DEFAULT_TLS = (
+CFG_TLS = bytes([
   # Read only - start
   # SN[0:3]
   0x01, 0x23, 0x00, 0x00,
@@ -103,7 +103,7 @@ CFG_DEFAULT_TLS = (
   0xC0,
   # I2C_Enable
   0x71,
-  # Reserved
+  # Reserved                  
   0x00,
   # Read only - end
   # I2C_Address
@@ -151,7 +151,7 @@ CFG_DEFAULT_TLS = (
   0x55,
   # SlotLocked
   0xFF, 0xFF,
-  # Write via commands only - end
+# Write via commands only - end
   # RFU
   0x00, 0x00,
   # X509format
@@ -172,9 +172,7 @@ CFG_DEFAULT_TLS = (
   0x3C, 0x00,
   0x3C, 0x00,
   0x3C, 0x00,
-  0x1C, 0x00
-)
-
+  0x1C, 0x00])
 
 class ATECC:
     """
@@ -254,7 +252,7 @@ class ATECC:
 
     @property
     def serial_number(self):
-        """Returns the ATECC's serial number."""
+        """Returns the ATECC serial number."""
         serial_num = bytearray(9)
         # 4-byte reads only
         temp_sn = bytearray(4)
@@ -272,11 +270,9 @@ class ATECC:
         serial_num = str(serial_num).upper()
         return serial_num
 
-
     def lock(self, lock_config=False, lock_data_otp=False,
                 lock_data=False):
-        """Locks the configuration and/or data and OTP
-        zones
+        """Locks specific zones of the ATECC.
         :param bool lock_config: Lock the configuration zone.
         :param bool lock_data_otp: Lock the data and OTP zones.
         :param bool lock_data: Lock a single slot in the data zone
@@ -298,7 +294,6 @@ class ATECC:
         assert res[0] == 0x00, "Failed locking ATECC!"
         return res
 
-
     def info(self, mode):
         """Access to statatic or dynamic information based on the
         value of the mode.
@@ -310,11 +305,6 @@ class ATECC:
         info_out = bytearray(4)
         self._get_response(info_out)
         return info_out
-
-    def write_config(self, data):
-        """Writes configuration data to the device's EEPROM.
-        :param bytearray data: Configuration data to-write
-        """
 
     def nonce(self, data, mode=0, zero=0x0000):
         """Generates a nonce by combining internally generated random number
@@ -460,16 +450,6 @@ class ATECC:
         assert len(resp) == 32, "SHA response length does not match expected length."
         return resp
 
-    # TODO: This implementation is not complete
-    def derive_key(self):
-        """Derive a target key value from the target
-        or a parent key.
-        """
-        # Run nonce command in passthru mode
-        input_data = bytearray(32)
-        input_data[1] = 0x01
-        atecc.nonce(input_data, 0x03)
-
     def mac(self, mode, key_id, challenge):
         """Computes a SHA-256 digest of a key stored on the device.
         Returns the digest of the message.
@@ -487,8 +467,28 @@ class ATECC:
         self._get_response(sha_digest)
         return sha_digest
 
+
+    def write_config(self, data):
+        """Writes configuration data to the device's EEPROM.
+        :param bytearray data: Configuration data to-write
+        """
+        # First 16 bytes of data are skipped, not writable
+        for i in range(16, 128, 4):
+            if i == 84:
+                continue
+            print(data[i])
+            try:
+                self._write(0, i/4, data[i])
+            except:
+                RuntimeError("Writing ATECC configuration failed")
+
+
     def _write(self, zone, address, buffer):
         self.wakeup()
+        print(buffer)
+        buffer = bytearray(buffer)
+        print(len(buffer))
+        print(buffer)
         if len(buffer) not in (4, 32):
             raise RuntimeError("Only 4 and 32 byte writes supported")
         if len(buffer) == 32:
