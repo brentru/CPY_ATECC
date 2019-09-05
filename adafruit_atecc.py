@@ -78,6 +78,7 @@ OP_NONCE = const(0x16)
 OP_RANDOM = const(0x1B)
 OP_SHA = const(0x47)
 OP_MAC = const(0x08)
+OP_LOCK = const(0x17)
 
 # Status/Error Codes (9-3)
 STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
@@ -187,7 +188,6 @@ class ATECC:
         return serial_num
 
 
-    # TODO: This method is UNTESTED!
     def lock(self, lock_config=False, lock_data_otp=False,
                 lock_data=False):
         """Locks the configuration and/or data and OTP
@@ -197,7 +197,6 @@ class ATECC:
         :param bool lock_data: Lock a single slot in the data zone
         """
         self.wakeup()
-        self.idle()
         if lock_config:
             mode = 0x00
         elif lock_data_otp:
@@ -206,9 +205,11 @@ class ATECC:
             mode = 0x02
         else:
             raise RuntimeError("Illegal slot value.")
-        self._send_command(0x17, mode)
+        self._send_command(0x17, mode, 0x0000)
         res = bytearray(1)
+        time.sleep(0.032)
         self._get_response(res)
+        self.idle()
         assert res[0] == 0x00, "Failed locking ATECC!"
         return res
 
