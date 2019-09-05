@@ -178,10 +178,11 @@ class ATECC:
     """
     CircuitPython interface for ATECCx08A Crypto Co-Processor Devices.
     """
-    def __init__(self, i2c_bus, address = _REG_ATECC_DEVICE_ADDR):
+    def __init__(self, i2c_bus, address = _REG_ATECC_DEVICE_ADDR, debug=False):
         """Initializes an ATECC device.
         :param busio i2c_bus: I2C Bus object.
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
+        :param bool debug: Library debugging enabled?
         """
         self._I2CBUF = bytearray(12)
         self._i2c_bus = i2c_bus
@@ -192,6 +193,7 @@ class ATECC:
         self.idle()
         if (self.version() >> 8) not in (_ATECC_508_VER, _ATECC_608_VER):
             raise RuntimeError("Failed to find 608 or 508 chip. Please check your wiring.")
+        self._debug = debug
 
     def wakeup(self):
         """Wakes up THE ATECC608A from sleep or idle modes.
@@ -203,7 +205,6 @@ class ATECC:
         if 0x60 in self._i2c_bus.scan():
             self._i2c_bus.unlock()
             return
-
         zero_bits = bytearray(2)
         try:
             self._i2c_bus.writeto(0x0, zero_bits)
@@ -211,7 +212,7 @@ class ATECC:
             pass    # this may fail, that's ok - its just to wake up the chip!
         time.sleep(_TWLO_TIME)
         data = self._i2c_bus.scan()         # check for an i2c device
-        print('I2C Addresses: ', [hex(i) for i in data])
+
         if data[0] != 96:
             raise TypeError('ATECCx08 not found - please check your wiring!')
         self._i2c_bus.unlock()
@@ -476,7 +477,6 @@ class ATECC:
         for i in range(16, 128, 4):
             if i == 84:
                 continue
-            print(data[i])
             try:
                 self._write(0, i/4, data[i])
             except:
@@ -485,10 +485,7 @@ class ATECC:
 
     def _write(self, zone, address, buffer):
         self.wakeup()
-        print(buffer)
         buffer = bytearray(buffer)
-        print(len(buffer))
-        print(buffer)
         if len(buffer) not in (4, 32):
             raise RuntimeError("Only 4 and 32 byte writes supported")
         if len(buffer) == 32:
@@ -496,7 +493,6 @@ class ATECC:
         self._send_command(0x12, zone, address, buffer)
         time.sleep(0.026)
         self._get_response(buffer)
-        print('Write response:', buffer)
         time.sleep(0.001)
         self.idle()
 
@@ -532,15 +528,13 @@ class ATECC:
         command_packet[5] = param_2 >> 8
         for i,c in enumerate(data):
             command_packet[6+i] = c
-        #print("Command Packet Sz: ", len(command_packet))
-        #print("\tSending:", [hex(i) for i in command_packet])
+        if self._debug:
+          print("Command Packet Sz: ", len(command_packet))
+          print("\tSending:", [hex(i) for i in command_packet])
         # Checksum, CRC16 verification
         crc = self.at_crc(command_packet[1:-2])
-        #print('Calculated CRC: ', hex(crc))
         command_packet[-1] = crc >> 8
         command_packet[-2] = crc & 0xFF
-        #for i in range(0, len(command_packet)):
-        #    print('command_packet[{0}]: {1}'.format(i, hex(command_packet[i])))
 
         self.wakeup()
         with self._i2c_device as i2c:
@@ -558,16 +552,15 @@ class ATECC:
             for _ in range(retries):
                 try:
                     i2c.readinto(response)
-                    #print(response)
                     break
                 except OSError:
                     pass
             else:
                 raise RuntimeError("Failed to read data from chip")
-        #print("\tReceived: ", [hex(i) for i in response])
+        if self._debug:
+          print("\tReceived: ", [hex(i) for i in response])
         crc = response[-2] | (response[-1] << 8)
         crc2 = self.at_crc(response[0:-2])
-        #print(hex(crc2))
         if crc != crc2:
             raise RuntimeError(STATUS_ERROR_CODES[0xFF])
         for i in range(length):
@@ -583,7 +576,6 @@ class ATECC:
         polynom = 0x8005
         crc = 0x0
         for b in data:
-            #print("\tbyte 0x%02x crc 0x%04x" % (b, crc))
             for shift in range(8):
                 data_bit = 0
                 if b & (1<<shift):
@@ -594,5 +586,4 @@ class ATECC:
                 if data_bit != crc_bit:
                     crc ^= polynom
                     crc &= 0xFFFF
-        #print("\tfinal CRC", hex(crc))
         return crc & 0xFFFF
