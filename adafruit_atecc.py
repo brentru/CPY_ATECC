@@ -80,6 +80,7 @@ OP_SHA = const(0x47)
 OP_MAC = const(0x08)
 OP_LOCK = const(0x17)
 
+
 # Status/Error Codes (9-3)
 STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
                         const(0x01), "CheckMac/Verify sent, input does not match expected value.",
@@ -89,6 +90,17 @@ STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
                         const(0x11), "ATECC RX'd Wake token.",
                         const(0xEE), "Watchdog About to Expire.",
                         const(0xFF), "CRC or Communication Error"}
+
+# Maximum execution times, in milliseconds (9-4)
+EXEC_TIME  = {OP_COUNTER: const(20),
+                OP_INFO: const(1),
+                OP_NONCE: const(7),
+                OP_RANDOM: const(23),
+                OP_SHA: const(47),
+                OP_MAC: const(14),
+                OP_LOCK: const(32),
+                OP_READ: const(1)}
+
 
 # Default TLS Configuration
 CFG_TLS = bytes([
@@ -184,6 +196,7 @@ class ATECC:
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
         :param bool debug: Library debugging enabled?
         """
+        self._debug = debug
         self._I2CBUF = bytearray(12)
         self._i2c_bus = i2c_bus
         self._i2c_device = None
@@ -193,7 +206,6 @@ class ATECC:
         self.idle()
         if (self.version() >> 8) not in (_ATECC_508_VER, _ATECC_608_VER):
             raise RuntimeError("Failed to find 608 or 508 chip. Please check your wiring.")
-        self._debug = debug
 
     def wakeup(self):
         """Wakes up THE ATECC608A from sleep or idle modes.
@@ -248,7 +260,7 @@ class ATECC:
     def locked(self):
         """Returns if the ATECC is locked."""
         config = bytearray(4)
-        self._read(0, 0x15, config)
+        self._read(0x00, 0x15, config)
         time.sleep(0.001)
         return config[2] == 0x0 and config[3] == 0x00
 
@@ -293,7 +305,7 @@ class ATECC:
             raise RuntimeError("Illegal slot value.")
         self._send_command(0x17, mode, 0x0000)
         res = bytearray(1)
-        time.sleep(0.032)
+        time.sleep(EXEC_TIME[OP_LOCK]/1000)
         self._get_response(res)
         self.idle()
         assert res[0] == 0x00, "Failed locking ATECC!"
@@ -307,7 +319,7 @@ class ATECC:
         self.wakeup()
         self.idle()
         self._send_command(OP_INFO, mode)
-        time.sleep(0.001)
+        time.sleep(EXEC_TIME[OP_INFO]/1000)
         info_out = bytearray(4)
         self._get_response(info_out)
         return info_out
@@ -335,7 +347,7 @@ class ATECC:
             calculated_nonce = bytearray(1)
         else:
             raise RuntimeError("Invalid mode specified!")
-        time.sleep(0.007)
+        time.sleep(EXEC_TIME[OP_NONCE]/1000)
         self._get_response(calculated_nonce)
         if mode == 0x03:
             # Successful pass-thru nonce should return "\x00"
@@ -360,7 +372,7 @@ class ATECC:
             self._send_command(OP_COUNTER, 0x01, counter)
         else:
             self._send_command(OP_COUNTER, 0x00, counter)
-        time.sleep(0.020)
+        time.sleep(EXEC_TIME[OP_COUNTER]/1000)
         self._get_response(count)
         self.version()
         return count
@@ -372,7 +384,7 @@ class ATECC:
         self.wakeup()
         self.idle()
         self._send_command(OP_RANDOM, 0x00, 0x0000)
-        time.sleep(0.023)
+        time.sleep(EXEC_TIME[OP_RANDOM]/1000)
         resp = bytearray(32)
         self._get_response(resp)
         self.idle()
@@ -388,7 +400,7 @@ class ATECC:
         self.wakeup()
         self.idle()
         self._send_command(OP_SHA, 0x00)
-        time.sleep(0.09)
+        time.sleep(EXEC_TIME[OP_SHA]/1000)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Start"
         return status
@@ -401,7 +413,7 @@ class ATECC:
         self.idle()
         status = bytearray(1)
         self._send_command(OP_SHA, 0x01, len(message), message)
-        time.sleep(0.09)
+        time.sleep(EXEC_TIME[OP_SHA]/1000)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Update"
         return status
@@ -414,7 +426,7 @@ class ATECC:
         self.idle()
         resp = bytearray(32)
         self._send_command(OP_SHA, 0x02)
-        time.sleep(0.09)
+        time.sleep(EXEC_TIME[OP_SHA]/1000)
         self._get_response(resp)
         assert len(resp) == 32, "SHA response length does not match expected length."
         return resp
@@ -432,7 +444,7 @@ class ATECC:
         self.wakeup()
         self.idle()
         self._send_command(OP_SHA, 0x04, key)
-        time.sleep(0.09)
+        time.sleep(EXEC_TIME[OP_SHA]/1000)
         self._get_response(status)
         assert status[0] == 0x00, "Error during HMAC Start"
         return status
@@ -454,6 +466,7 @@ class ATECC:
         resp = bytearray(32)
         self._send_command(OP_SHA, 0x05)
         self._get_response(resp)
+        time.sleep(EXEC_TIME[OP_SHA]/1000)
         assert len(resp) == 32, "SHA response length does not match expected length."
         return resp
 
