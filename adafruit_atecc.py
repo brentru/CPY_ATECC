@@ -34,13 +34,13 @@ Implementation Notes
 **Software and Dependencies:**
 
 * Adafruit CircuitPython firmware for the supported boards:
-  https:#github.com/adafruit/circuitpython/releases
+  https://github.com/adafruit/circuitpython/releases
 
  * Adafruit's Bus Device library:
-  https:#github.com/adafruit/Adafruit_CircuitPython_BusDevice
+  https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
 
  * Adafruit's binascii library:
-  https:#github.com/adafruit/Adafruit_CircuitPython_binascii
+  https://github.com/adafruit/Adafruit_CircuitPython_binascii
 
 """
 import time
@@ -49,6 +49,7 @@ from micropython import const
 import busio
 from adafruit_bus_device.i2c_device import I2CDevice
 from adafruit_binascii import hexlify
+import atecc_asn1
 
 __version__ = "0.0.0-auto.0"
 __repo__ = "https:#github.com/adafruit/Circuitpython_CircuitPython_CircuitPython_CryptoAuth.git"
@@ -450,17 +451,24 @@ class ATECC:
 
     # CSR Generation
     # TODO: Combine _begin and _end into one method.
-    def csr_begin(self, slot_num, private_key):
+    def csr_begin(self, slot_num, private_key, country, state_prov, city, org, org_unit):
         """Initialize ATECC CSR Generation
         :param int slot_num: CSR Slot (0 to 4).
         :param bool private_key: Generate a new private key in selected slot.
         """
         assert 0 <= slot_num <= 4, "Provided slot must be between 0 and 4."
+        # Initialize ASN1 certificate info
+        self._asn1 = atecc_asn1.cert(country, state_prov, city, org, org_unit, self.serial_number)
         self._pub_key = bytearray(64)
         if private_key:
             self.gen_key(slot_num, private_key)
             return
         self.gen_key(slot_num, private_key)
+    
+    def csr_end(self):
+        """Generates CSR
+        """
+        len_issuer_subject = self._asn1.issuer_or_subject_length()
 
     def gen_key(self, slot_num, private_key=False):
         """Generates an ECC private or public key.
