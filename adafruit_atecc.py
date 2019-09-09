@@ -79,6 +79,7 @@ OP_RANDOM = const(0x1B)
 OP_SHA = const(0x47)
 OP_MAC = const(0x08)
 OP_LOCK = const(0x17)
+OP_READ = const(0x02)
 
 
 # Status/Error Codes (9-3)
@@ -430,62 +431,6 @@ class ATECC:
         self._get_response(resp)
         assert len(resp) == 32, "SHA response length does not match expected length."
         return resp
-
-
-    # HMAC
-    # Note: 2-4 generate secret keys, 
-    # we need to do this before hmac_start is run with the key
-    def hmac_start(self, key=0):
-        """Initializes the HMAC calculation engine
-        and the SHA context in memory.
-        :param int key: Stored key for SHA operations.
-        """
-        status = bytearray(1)
-        self.wakeup()
-        self.idle()
-        self._send_command(OP_SHA, 0x04, key)
-        time.sleep(EXEC_TIME[OP_SHA]/1000)
-        self._get_response(status)
-        assert status[0] == 0x00, "Error during HMAC Start"
-        return status
-
-    def hmac_update(self, message):
-        """Appends bytes to the message. Can be repeatedly called.
-        :param bytes message: bytes-like object
-        """
-        status = bytearray(1)
-        status = self.sha_update(message)
-        return status
-
-    def hmac_digest(self):
-        """Returns the digest of the data passed to the
-        hmac_update method so far.
-        """
-        self.wakeup()
-        self.idle()
-        resp = bytearray(32)
-        self._send_command(OP_SHA, 0x05)
-        self._get_response(resp)
-        time.sleep(EXEC_TIME[OP_SHA]/1000)
-        assert len(resp) == 32, "SHA response length does not match expected length."
-        return resp
-
-    def mac(self, mode, key_id, challenge):
-        """Computes a SHA-256 digest of a key stored on the device.
-        Returns the digest of the message.
-        """
-        self.wakeup()
-        self.idle()
-        # Run Nonce once to load input challenge
-        data = bytearray(20)
-        nonce_val = self.nonce(data)
-        # Optionally run GenDig to combine 1+ EEPROM locations with the nonce
-        # TODO: Create a GenDig method
-        # Run the mac command to combine step 1 (optionally, step 2) and the EEPROM key
-        sha_digest = bytearray(32)
-        self._send_command(OP_MAC, mode, key_id, challenge)
-        self._get_response(sha_digest)
-        return sha_digest
 
 
     def write_config(self, data):
