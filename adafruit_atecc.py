@@ -80,6 +80,7 @@ OP_SHA = const(0x47)
 OP_MAC = const(0x08)
 OP_LOCK = const(0x17)
 OP_READ = const(0x02)
+OP_GEN_KEY = const(0x40)
 
 
 # Status/Error Codes (9-3)
@@ -100,7 +101,8 @@ EXEC_TIME  = {OP_COUNTER: const(20),
                 OP_SHA: const(47),
                 OP_MAC: const(14),
                 OP_LOCK: const(32),
-                OP_READ: const(1)}
+                OP_READ: const(1),
+                OP_GEN_KEY: const(115)}
 
 
 # Default TLS Configuration
@@ -445,6 +447,36 @@ class ATECC:
                 self._write(0, i/4, data[i])
             except:
                 RuntimeError("Writing ATECC configuration failed")
+
+    # CSR Generation
+    # TODO: Combine _begin and _end into one method.
+    def csr_begin(self, slot_num, private_key):
+        """Initialize ATECC CSR Generation
+        :param int slot_num: CSR Slot (0 to 4).
+        :param bool private_key: Generate a new private key in selected slot.
+        """
+        assert 0 <= slot_num <= 4, "Provided slot must be between 0 and 4."
+        self._pub_key = bytearray(64)
+        if private_key:
+            self.gen_key(slot_num, private_key)
+            return
+        self.gen_key(slot_num, private_key)
+
+    def gen_key(self, slot_num, private_key=False):
+        """Generates an ECC private or public key.
+        :param int slot_num: CSR slot (0 to 4).
+        :param bool private_key: Generates a private key if true.
+        """
+        assert 0 <= slot_num <= 4, "Provided slot must be between 0 and 4."
+        self.wakeup()
+        if private_key:
+            self._send_command(OP_GEN_KEY, 0x04, slot_num)
+        else:
+            self._send_command(OP_GEN_KEY, 0x00, slot_num)
+        time.sleep(EXEC_TIME[OP_GEN_KEY]/1000)
+        self._get_response(self._pub_key)
+        time.sleep(0.001)
+        self.idle()
 
 
     def _write(self, zone, address, buffer):
