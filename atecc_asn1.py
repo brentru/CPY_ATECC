@@ -50,19 +50,22 @@ def seq_header_length(length):
 
 def append_seq_header(length, out):
   out.append(ASN1_SEQ)
+
   if length > 255:
-    out[0] += 0x82
-    out[0] += (length >> 8) & 0xff
+    out.append(0x82)
+    out.append((length >> 8) & 0xff)
   elif length > 127:
     out.append(0x81)
+
   out.append((length) & 0xff)
-  
+
   if length > 255:
     return 4
   elif length > 127:
     return 3
   else:
     return 2
+
 
 def append_version(out):
   out.append(ASN1_INT)

@@ -52,7 +52,7 @@ from adafruit_binascii import hexlify
 import atecc_asn1
 
 __version__ = "0.0.0-auto.0"
-__repo__ = "https:#github.com/adafruit/Circuitpython_CircuitPython_CircuitPython_CryptoAuth.git"
+__repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_ATECC.git"
 
 # Device Address
 _REG_ATECC_ADDR = const(0xC0)
@@ -450,8 +450,15 @@ class ATECC:
                 RuntimeError("Writing ATECC configuration failed")
 
     # CSR Generation
-    # TODO: Combine _begin and _end into one method.
-    def csr_begin(self, slot_num, private_key, country, state_prov, city, org, org_unit):
+
+    def generate_csr(self, slot_num, private_key, country, state_prov, city, org, org_unit):
+        """Perform ATECC CSR Generation.
+        """
+        self._csr_begin(slot_num, private_key, country, state_prov, city, org, org_unit)
+        csr = self._csr_end()
+        return csr
+
+    def _csr_begin(self, slot_num, private_key, country, state_prov, city, org, org_unit):
         """Initialize ATECC CSR Generation
         :param int slot_num: CSR Slot (0 to 4).
         :param bool private_key: Generate a new private key in selected slot.
@@ -464,11 +471,29 @@ class ATECC:
             self.gen_key(slot_num, private_key)
             return
         self.gen_key(slot_num, private_key)
-    
-    def csr_end(self):
-        """Generates CSR
+
+    def _csr_end(self):
+        """Generates CSR.
         """
         len_issuer_subject = self._asn1.issuer_or_subject_length()
+        len_sub_header = atecc_asn1.seq_header_length(len_issuer_subject)
+        len_pub_key = 2 + 2 + 9 + 10 + 4 + 64
+        
+        len_csr_info = self._asn1._version_len + len_issuer_subject + len_sub_header + len_pub_key + 2
+        len_csr_info_header = atecc_asn1.seq_header_length(len_csr_info)
+
+        csr_info = bytearray(len_csr_info + len_csr_info_header)
+        csr_out = csr_info
+
+        # CSR Info
+        atecc_asn1.append_seq_header(len_csr_info, csr_out)
+
+        # Version
+        atecc_asn1.append_version(csr_out)
+        csr_out.append(self._asn1._version_len)
+
+        return 1
+
 
     def gen_key(self, slot_num, private_key=False):
         """Generates an ECC private or public key.

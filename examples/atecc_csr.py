@@ -1,29 +1,7 @@
 import board
 import adafruit_atecc
-import atecc_asn1
 import busio
 import time
-import adafruit_ssd1306
-
-# -- Enter your configuration below -- #
-
-# Lock the ATECC module when the code is run?
-LOCK_ATECC = True
-# 2-letter country code
-MY_COUNTRY = "US"
-# State or Province Name
-MY_STATE = "New York"
-# City Name
-MY_CITY = "New York"
-# Organization Name
-MY_ORG = "Adafruit Industries"
-# Organizational Unit Name
-MY_SECTION = "Engineering"
-# Which ATECC slot (0-4) to use
-ATECC_SLOT = 0
-# Generate new private key, or use existing key
-GENERATE_PRIVATE_KEY = True
-# -- END Configuration, code below -- #
 
 # Initialize the i2c bus
 i2c = busio.I2C(board.SCL, board.SDA,
@@ -32,20 +10,31 @@ i2c = busio.I2C(board.SCL, board.SDA,
 # Initialize an atecc object
 atecc = adafruit_atecc.ATECC(i2c)
 
-print("Serial Number: ", atecc.serial_number)
+# Generate random number
+print("Generating Random Number...")
+random_num = atecc.random()
+print("Random Number[0]: ", random_num[0])
 
-if not atecc.locked:
-    if not LOCK_ATECC:
-        raise RuntimeError("The ATECC is not locked, set LOCK_ATECC to True in your code to unlock it.")
-    print("Writing default configuration to the device...")
-    atecc.write_config(adafruit_atecc.CFG_TLS)
-    print("Locking ATECC module...")
-    # lock configuration zone
-    #atecc.lock(lock_config=True)
-    # lock data and otp zones
-    #atecc.lock(lock_data_otp=True)
-    print("ATECC locked!")
+# Generate a nonce, mode is 1
+input_data = bytearray(20)
+input_data[1] = 0x01
+print("Generating Nonce using input_data: ", input_data)
+nonce_value = atecc.nonce(input_data)
+print("Nonce[0]: ", nonce_value[0])
 
-# CSR Initialization and Generation
-atecc.csr_begin(ATECC_SLOT, GENERATE_PRIVATE_KEY, MY_COUNTRY, MY_STATE, MY_CITY, MY_ORG, MY_SECTION)
-atecc.csr_end()
+# Generate a nonce in passthru mode
+input_data = bytearray(32)
+input_data[1] = 0x01
+print("Generating Nonce using input_data: ", input_data)
+nonce_value = atecc.nonce(input_data, 0x03)
+
+print("Generating SHA256 digest...")
+calculated_sha = bytearray(64)
+atecc.sha_start()
+atecc.sha_update(b"hello")
+calculated_sha = atecc.sha_digest()
+print("Calculated SHA256 Digest: ", calculated_sha)
+
+print("Generating HMAC digest...")
+calculated_hmac = bytearray(64)
+secret_hmac_key = b"secret-key"
