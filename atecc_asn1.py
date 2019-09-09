@@ -35,6 +35,39 @@ Implementation Notes
 * Adafruit CircuitPython firmware for the supported boards:
   https://github.com/adafruit/circuitpython/releases
 """
+from micropython import const
+
+ASN1_INT = const(0x02)
+ASN1_SEQ = const(0x30)
+
+def seq_header_length(length):
+  if length > 255:
+    return 4
+  elif length > 127:
+    return 3
+  else:
+    return 2
+
+def append_seq_header(length, out):
+  out.append(ASN1_SEQ)
+  if length > 255:
+    out[0] += 0x82
+    out[0] += (length >> 8) & 0xff
+  elif length > 127:
+    out.append(0x81)
+  out.append((length) & 0xff)
+  
+  if length > 255:
+    return 4
+  elif length > 127:
+    return 3
+  else:
+    return 2
+
+def append_version(out):
+  out.append(ASN1_INT)
+  out.append(0x01)
+  out.append(0x00)
 
 class cert:
     def __init__(self, country, state_prov, city, org, org_unit, atecc_serial_num):
@@ -62,5 +95,4 @@ class cert:
         tot_len+= (11+len(self._common))
       else:
         raise TypeError("Provided length must be > 0")
-      print(tot_len)
       return tot_len
