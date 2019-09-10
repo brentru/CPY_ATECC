@@ -49,7 +49,6 @@ from micropython import const
 import busio
 from adafruit_bus_device.i2c_device import I2CDevice
 from adafruit_binascii import hexlify
-import adafruit_atecc.adafruit_atecc_asn1 as asn1
 
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_ATECC.git"
@@ -461,51 +460,8 @@ class ATECC:
         assert len(resp) == 32, "SHA response length does not match expected length."
         return resp
 
-    # CSR Generation
-    def generate_csr(self, slot_num, private_key, country, state_prov, city, org, org_unit):
-        """Perform ATECC CSR Generation.
-        """
-        self._csr_begin(slot_num, private_key, country, state_prov, city, org, org_unit)
-        csr = self._csr_end(slot_num)
-        return csr
 
-    def _csr_begin(self, slot_num, private_key, country, state_prov, city, org, org_unit):
-        """Initialize ATECC CSR Generation
-        :param int slot_num: CSR Slot (0 to 4).
-        :param bool private_key: Generate a new private key in selected slot.
-        """
-        assert 0 <= slot_num <= 4, "Provided slot must be between 0 and 4."
-        # Initialize ASN1 certificate info
-        self._cert_info = asn1.cert(country, state_prov, city, org, org_unit, self.serial_number)
-        self._pub_key = bytearray(64)
-        if private_key:
-            self.gen_key(slot_num, private_key)
-            return
-        self.gen_key(slot_num, private_key)
-
-    def _csr_end(self, slot_num):
-        """Generates CSR.
-        :param int slot_num: Destination slot for csr (0 to 4).
-        """
-        len_issuer_subject = self._cert_info.issuer_or_subject_length()
-        len_sub_header = asn1.seq_header_length(len_issuer_subject)
-        len_pub_key = 2 + 2 + 9 + 10 + 4 + 64
-        
-        len_csr_info = self._cert_info._version_len + len_issuer_subject + len_sub_header + len_pub_key + 2
-        len_csr_info_header = asn1.seq_header_length(len_csr_info)
-
-        csr_info = bytearray(len_csr_info + len_csr_info_header)
-        csr_out = csr_info
-
-        # CSR Info
-        asn1.append_seq_header(len_csr_info, csr_out)
-
-        # Version
-        asn1.append_version(csr_out)
-        csr_out.append(self._cert_info._version_len)
-        return 1
-
-    def gen_key(self, slot_num, private_key=False):
+    def gen_key(self, key, slot_num, private_key=False):
         """Generates an ECC private or public key.
         :param int slot_num: CSR slot (0 to 4).
         :param bool private_key: Generates a private key if true.
@@ -517,7 +473,7 @@ class ATECC:
         else:
             self._send_command(OP_GEN_KEY, 0x00, slot_num)
         time.sleep(EXEC_TIME[OP_GEN_KEY]/1000)
-        self._get_response(self._pub_key)
+        self._get_response(key)
         time.sleep(0.001)
         self.idle()
 
