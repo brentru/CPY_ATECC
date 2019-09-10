@@ -198,7 +198,7 @@ class ATECC:
         """Initializes an ATECC device.
         :param busio i2c_bus: I2C Bus object.
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
-        :param bool debug: Library debugging enabled?
+        :param bool debug: Library debugging enabled
         """
         self._debug = debug
         self._I2CBUF = bytearray(12)
@@ -466,7 +466,7 @@ class ATECC:
         """Perform ATECC CSR Generation.
         """
         self._csr_begin(slot_num, private_key, country, state_prov, city, org, org_unit)
-        csr = self._csr_end()
+        csr = self._csr_end(slot_num)
         return csr
 
     def _csr_begin(self, slot_num, private_key, country, state_prov, city, org, org_unit):
@@ -483,8 +483,9 @@ class ATECC:
             return
         self.gen_key(slot_num, private_key)
 
-    def _csr_end(self):
+    def _csr_end(self, slot_num):
         """Generates CSR.
+        :param int slot_num: Destination slot for csr (0 to 4).
         """
         len_issuer_subject = self._cert_info.issuer_or_subject_length()
         len_sub_header = asn1.seq_header_length(len_issuer_subject)
