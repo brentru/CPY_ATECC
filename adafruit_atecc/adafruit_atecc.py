@@ -387,19 +387,21 @@ class ATECC:
         :param int min: Minimum Random value to generate
         :param int max: Maximum random value to generate
         """
-        self.wakeup()
         if max:
             min = 0
         if min >= max:
             return min
         delta = max - min
-        r = bytes(4)
+        r = bytes(16)
         r = self._random(r)
-        r = r[0]+r[1]+r[2]+r[3]
-        if r < 0:
-            r = -r
-        r = r % delta
-        return r + min
+        data = 0
+        for i in range(0, len(r)):
+            d = r[i]
+            data +=d
+        if data < 0:
+            data = -data
+        data = data % delta
+        return data + min
 
 
     def _random(self, data):
@@ -413,11 +415,10 @@ class ATECC:
             resp = bytearray(32)
             self._get_response(resp)
             copy_len = min(32, data_len)
-            d = bytearray()
-            d = resp[0:copy_len]
+            data = resp[0:copy_len]
             data_len -= copy_len
         self.idle()
-        return d
+        return data
 
     # SHA-256 methods, similar to CPython HashLib methods.
     def sha_start(self):
