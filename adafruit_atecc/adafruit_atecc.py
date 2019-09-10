@@ -321,11 +321,11 @@ class ATECC:
         :param int mode: Mode encoding, see Table 9-26.
         """
         self.wakeup()
-        self.idle()
         self._send_command(OP_INFO, mode)
         time.sleep(EXEC_TIME[OP_INFO]/1000)
         info_out = bytearray(4)
         self._get_response(info_out)
+        self.idle()
         return info_out
 
     def nonce(self, data, mode=0, zero=0x0000):
@@ -336,7 +336,6 @@ class ATECC:
         :param int zero: Param2, see Table 9-35.
         """
         self.wakeup()
-        self.idle()
         if mode == 0x00 or mode == 0x01:
             if zero == 0x00:
                 assert len(data) == 20, "Data value must be 20 bytes long."
@@ -356,6 +355,7 @@ class ATECC:
         if mode == 0x03:
             # Successful pass-thru nonce should return "\x00"
             assert calculated_nonce[0] == 0x00, "Incorrectly calculated nonce in pass-thru mode"
+        self.idle()
         return calculated_nonce
 
 
@@ -368,7 +368,6 @@ class ATECC:
         """
         count = bytearray(4)
         self.wakeup()
-        self.idle()
         counter= 0x00
         if counter == 1:
             counter = 0x01
@@ -378,7 +377,7 @@ class ATECC:
             self._send_command(OP_COUNTER, 0x00, counter)
         time.sleep(EXEC_TIME[OP_COUNTER]/1000)
         self._get_response(count)
-        self.version()
+        self.idle()
         return count
 
 
@@ -405,7 +404,8 @@ class ATECC:
 
 
     def _random(self, data):
-        """Generates a random byte.
+        """Initializes the random number generator and returns.
+        :param bytearray data: Response buffer.
         """
         self.wakeup()
         data_len = len(data)
@@ -420,7 +420,7 @@ class ATECC:
         self.idle()
         return data
 
-    # SHA-256 methods, similar to CPython HashLib methods.
+    # SHA-256 Methods
     def sha_start(self):
         """Initializes the SHA-256 calculation engine
         and the SHA context in memory.
@@ -461,22 +461,7 @@ class ATECC:
         assert len(resp) == 32, "SHA response length does not match expected length."
         return resp
 
-
-    def write_config(self, data):
-        """Writes configuration data to the device's EEPROM.
-        :param bytearray data: Configuration data to-write
-        """
-        # First 16 bytes of data are skipped, not writable
-        for i in range(16, 128, 4):
-            if i == 84:
-                continue
-            try:
-                self._write(0, i/4, data[i])
-            except:
-                RuntimeError("Writing ATECC configuration failed")
-
     # CSR Generation
-
     def generate_csr(self, slot_num, private_key, country, state_prov, city, org, org_unit):
         """Perform ATECC CSR Generation.
         """
@@ -517,7 +502,6 @@ class ATECC:
         # Version
         asn1.append_version(csr_out)
         csr_out.append(self._cert_info._version_len)
-
         return 1
 
     def gen_key(self, slot_num, private_key=False):
@@ -536,6 +520,18 @@ class ATECC:
         time.sleep(0.001)
         self.idle()
 
+    def write_config(self, data):
+        """Writes configuration data to the device's EEPROM.
+        :param bytearray data: Configuration data to-write
+        """
+        # First 16 bytes of data are skipped, not writable
+        for i in range(16, 128, 4):
+            if i == 84:
+                continue
+            try:
+                self._write(0, i/4, data[i])
+            except:
+                RuntimeError("Writing ATECC configuration failed")
 
     def _write(self, zone, address, buffer):
         self.wakeup()
