@@ -427,38 +427,49 @@ class ATECC:
         """
         status = bytearray(1)
         self.wakeup()
-        self.idle()
         self._send_command(OP_SHA, 0x00)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Start"
+        self.idle()
         return status
 
     def sha_update(self, message):
         """Appends bytes to the message. Can be repeatedly called.
-        :param bytes message: bytes-like object
+        :param bytes message: Up to 64 bytes of data to be included
+                                into the hash operation.
         """
+        print("sha_update: ", message)
         self.wakeup()
-        self.idle()
         status = bytearray(1)
         self._send_command(OP_SHA, 0x01, len(message), message)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Update"
+        self.idle()
         return status
-    
-    def sha_digest(self):
+
+
+    def sha_digest(self, message=None, result_buff=None):
         """Returns the digest of the data passed to the
         sha_update method so far.
+        :param bytearray message: Up to 64 bytes of data to be included
+                                    into the hash operation.
+        :param bytearray result_buff: Returned sha digest, up to 32 bytes.
         """
         self.wakeup()
-        self.idle()
-        resp = bytearray(32)
-        self._send_command(OP_SHA, 0x02)
+        if result_buff is None:
+            # no result buffer provided, allocate one
+            result_buff = bytearray(32)
+        if len(result_buff) > 32:
+            # Reduce the buffer down to 32 bytes
+            result_buff = result_buff[0:32]
+        self._send_command(OP_SHA, 0x02, len(message), message)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
-        self._get_response(resp)
-        assert len(resp) == 32, "SHA response length does not match expected length."
-        return resp
+        self._get_response(result_buff)
+        assert len(result_buff) == 32, "SHA response length does not match expected length."
+        self.idle()
+        return result_buff
 
 
     def gen_key(self, key, slot_num, private_key=False):
@@ -476,6 +487,7 @@ class ATECC:
         self._get_response(key)
         time.sleep(0.001)
         self.idle()
+        return key
 
     def write_config(self, data):
         """Writes configuration data to the device's EEPROM.

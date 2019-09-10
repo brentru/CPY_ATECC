@@ -36,6 +36,7 @@ Implementation Notes
   https://github.com/adafruit/circuitpython/releases
 """
 from micropython import const
+import struct
 import adafruit_atecc.adafruit_atecc_asn1 as asn1
 
 ASN1_INTEGER           = const(0x02)
@@ -75,7 +76,8 @@ class CSR:
       self._common = self._atecc.serial_number
 
     def generate_csr(self):
-        """Generates a new CSR.
+        """Generates and returns
+        a certificate signing request.
         """
         self._csr_begin()
         csr = self._csr_end()
@@ -95,7 +97,8 @@ class CSR:
 
 
     def _csr_end(self):
-      """Generates and returns CSR."""
+      """Generates and returns
+      a certificate signing request."""
       len_issuer_subject = self._cert_info.issuer_or_subject_length()
       len_sub_header = asn1.seq_header_length(len_issuer_subject)
       len_pub_key = 2 + 2 + 9 + 10 + 4 + 64
@@ -103,6 +106,7 @@ class CSR:
       len_csr_info = self._cert_info._version_len + len_issuer_subject + len_sub_header + len_pub_key + 2
       len_csr_info_header = asn1.seq_header_length(len_csr_info)
 
+      # Debug, TODO: Remove!
       print("Version Length:", self._cert_info._version_len)
       print("len_issuer_subject: ", len_issuer_subject)
       print("len_sub_header: ", len_sub_header)
@@ -130,12 +134,31 @@ class CSR:
 
       # Append Public Key
       self.get_public_key(csr_info)
-      data.append(len_pub_key)
+      csr_info.append(len_pub_key)
 
-      data += b"\xa0\x00"
+      csr_info += b"\xa0\x00"
 
       # CSR-SHA
+      csr_info_sha = bytearray(64)
+      signature = bytearray(64)
+      # Initialize the SHA-256 calculation engine
+      self._atecc.sha_start()
 
+      for i in range(0, len_csr_info_header + len_csr_info, 64):
+        chunk_len = len_csr_info_header + len_csr_info - i
+
+        # ensure we're not writing more than 64 bytes at a time
+        if chunk_len > 64:
+          chunk_len = 64
+        # only write 64 bytes at a time
+        if chunk_len==64:
+          # append to the sha message
+          self._atecc.sha_update(struct.pack("B",csr_info[i]))
+        else:
+          print("Digest")
+          csr_info_sha = self._atecc.sha_digest(struct.pack("B", csr_info[i]), csr_info_sha)
+      
+      print(csr_info_sha)
 
     def get_public_key(self, data):
       """Appends public key subject and object identifiers."""
