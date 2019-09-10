@@ -46,6 +46,9 @@ ASN1_PRINTABLE_STRING  = const(0x13)
 ASN1_SEQUENCE          = const(0x30)
 ASN1_SET               = const(0x31)
 
+# Subject public key data length, fixed.
+SUB_PUB_KEY_DATA_LEN   = const(0x59)
+
 class CSR:
     """Certificate signing request generation.
 
@@ -107,7 +110,7 @@ class CSR:
       print("len_csr_info: ", len_csr_info)
       print("len_csr_info_header: ", len_csr_info_header)
 
-      # CSR Info
+      # CSR
       #csr_info = bytearray(len_csr_info + len_csr_info_header)
       csr_info = bytearray()
 
@@ -122,17 +125,38 @@ class CSR:
       # Append Subject
       self.get_sequence_header(len_sub_header, csr_info)
       csr_info.append(len_sub_header)
-      print(csr_info)
+      self.get_issuer_or_subject(csr_info)
+      csr_info.append(len_issuer_subject)
 
+      # Append Public Key
+      self.get_public_key(csr_info)
+      data.append(len_pub_key)
+
+      data += b"\xa0\x00"
+
+      # CSR-SHA
+
+
+    def get_public_key(self, data):
+      """Appends public key subject and object identifiers."""
+      # Subject: Public Key
+      data += b"\x30\x59\x30\x13"
+
+      # Object identifier: EC Public Key
+      data += b"\x06\x07\x2a\x82\x47\xce\x3d\x02\x01"
+
+      # Object identifier: PRIME 256 v1
+      data += b"\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07\x03\x42\x00\x04"
+      # Only copy first 64 bits of public key
+      data += self._pub_key[0:64]
 
     def get_sequence_header(self, length, data):
-        data.append(ASN1_SEQUENCE)
+        data += b"\x30"
         if length > 255:
-          data.append(0x82)
+          data += b"\x82"
           data.append((length >> 8) & 0xff)
         elif (length > 127):
-          data.append(0x81)
-
+          data += b"\x81"
         data.append((length >> 8) & 0xff)
 
     def get_version(self, data):
@@ -149,32 +173,30 @@ class CSR:
         :param int type: Object identifier type.
         :param bytearray data: Buffer to write to.
         """
+
         data.append(ASN1_SET)
         data.append(len(name) + 9)
         
         data.append(ASN1_SEQUENCE)
         data.append(len(name) + 7)
 
-        data.append(ASN1_OBJECT_IDENTIFIER)
-        data.append(0x03)
-        data.append(0x55)
-        data.append(0x04)
+        data += b"\x06\x03\x55\x04"
         data.append(type)
 
         data.append(ASN1_PRINTABLE_STRING)
         data.append(len(name))
-        data.append(name)
-
+        data += bytearray(name)
+        return len(name) + 11
 
     def get_issuer_or_subject(self, data):
-      # TODO: relies on impl. of get_name
+      """Appends issuer or subject data, if they exist."""
       if len(self._country) > 0:
-        data += self.get_name(self._country, 0x06, data)
+        data.append(self.get_name(self._country, 0x06, data))
       if len(self._state_province) > 0:
-        data += self.get_name(self._state_province, 0x07, data)
+        data.append(self.get_name(self._state_province, 0x07, data))
       if len(self._locality) > 0:
-        data += self.get_name(self._locality, 0x0a, data)
+        data.append(self.get_name(self._locality, 0x0a, data))
       if len(self._org) > 0:
-        data += self.get_name(self._org, 0x0b, data)
+        data.append(self.get_name(self._org, 0x0b, data))
       if len(self._org_unit) > 0:
-        data += self.get_name(self._org_unit, 0x03, data)
+        data.append(self.get_name(self._org_unit, 0x03, data))
