@@ -382,17 +382,42 @@ class ATECC:
         return count
 
 
-    def random(self):
+    def random(self, min=0, max=0):
         """Generates a random number for use by the system.
+        :param int min: Minimum Random value to generate
+        :param int max: Maximum random value to generate
         """
         self.wakeup()
+        if max:
+            min = 0
+        if min >= max:
+            return min
+        delta = max - min
+        r = bytes(4)
+        r = self._random(r)
+        r = r[0]+r[1]+r[2]+r[3]
+        if r < 0:
+            r = -r
+        r = r % delta
+        return r + min
+
+
+    def _random(self, data):
+        """Generates a random byte.
+        """
+        self.wakeup()
+        data_len = len(data)
+        while data_len:
+            self._send_command(OP_RANDOM, 0x00, 0x0000)
+            time.sleep(EXEC_TIME[OP_RANDOM]/1000)
+            resp = bytearray(32)
+            self._get_response(resp)
+            copy_len = min(32, data_len)
+            d = bytearray()
+            d = resp[0:copy_len]
+            data_len -= copy_len
         self.idle()
-        self._send_command(OP_RANDOM, 0x00, 0x0000)
-        time.sleep(EXEC_TIME[OP_RANDOM]/1000)
-        resp = bytearray(32)
-        self._get_response(resp)
-        self.idle()
-        return resp
+        return d
 
     # SHA-256 methods, similar to CPython HashLib methods.
     def sha_start(self):
@@ -494,7 +519,6 @@ class ATECC:
 
         return 1
 
-
     def gen_key(self, slot_num, private_key=False):
         """Generates an ECC private or public key.
         :param int slot_num: CSR slot (0 to 4).
@@ -561,7 +585,7 @@ class ATECC:
           print("Command Packet Sz: ", len(command_packet))
           print("\tSending:", [hex(i) for i in command_packet])
         # Checksum, CRC16 verification
-        crc = self.at_crc(command_packet[1:-2])
+        crc = self._at_crc(command_packet[1:-2])
         command_packet[-1] = crc >> 8
         command_packet[-2] = crc & 0xFF
 
@@ -589,7 +613,7 @@ class ATECC:
         if self._debug:
           print("\tReceived: ", [hex(i) for i in response])
         crc = response[-2] | (response[-1] << 8)
-        crc2 = self.at_crc(response[0:-2])
+        crc2 = self._at_crc(response[0:-2])
         if crc != crc2:
             raise RuntimeError(STATUS_ERROR_CODES[0xFF])
         for i in range(length):
@@ -597,7 +621,7 @@ class ATECC:
         return response[1]
 
 
-    def at_crc(self, data, length=None):
+    def _at_crc(self, data, length=None):
         if length is None:
             length = len(data)
         if not data or not length:
