@@ -132,10 +132,27 @@ class CSR:
       # Append Public Key
       self.get_public_key(csr_info)
 
+      # Termination bits
       csr_info += b"\xa0\x00"
 
-      print(csr_info)
+      print('CSR Info: ', csr_info)
       print("CSR Length: ", len(csr_info))
+
+      csr_info_sha_256 = bytearray(64)
+
+      # Init. SHA-256 Calculation
+      self._atecc.sha_start()
+
+      for i in range(0, len_csr_info + len_csr_info_header, 64):
+        chunk_len = (len_csr_info_header + len_csr_info) - i
+
+        if chunk_len > 64:
+          chunk_len = 64
+        if chunk_len == 64:
+          self._atecc.sha_update(csr_info[i])
+        else:
+          csr_info_sha_256 = self._atecc.sha_digest(csr_info[i])
+
 
 
     def get_public_key(self, data):

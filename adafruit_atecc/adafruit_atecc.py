@@ -49,6 +49,7 @@ from micropython import const
 import busio
 from adafruit_bus_device.i2c_device import I2CDevice
 from adafruit_binascii import hexlify
+from struct import pack
 
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_ATECC.git"
@@ -81,6 +82,7 @@ OP_MAC = const(0x08)
 OP_LOCK = const(0x17)
 OP_READ = const(0x02)
 OP_GEN_KEY = const(0x40)
+OP_SIGN = const(0x41)
 
 
 # Status/Error Codes (9-3)
@@ -102,10 +104,12 @@ EXEC_TIME  = {OP_COUNTER: const(20),
                 OP_MAC: const(14),
                 OP_LOCK: const(32),
                 OP_READ: const(1),
-                OP_GEN_KEY: const(115)}
+                OP_GEN_KEY: const(115),
+                OP_SIGN : const(50)}
 
 
 # Default TLS Configuration
+# TODO: change this to a tuple!!
 CFG_TLS = bytes([
   # Read only - start
   # SN[0:3]
@@ -351,10 +355,11 @@ class ATECC:
             raise RuntimeError("Invalid mode specified!")
         time.sleep(EXEC_TIME[OP_NONCE]/1000)
         self._get_response(calculated_nonce)
-        if mode == 0x03:
-            # Successful pass-thru nonce should return "\x00"
-            assert calculated_nonce[0] == 0x00, "Incorrectly calculated nonce in pass-thru mode"
+        time.sleep(1/1000)
         self.idle()
+        if mode == 0x03:
+            # Successful pass-thru nonce command should return 0
+            assert calculated_nonce[0] == 0x00, "Incorrectly calculated nonce in pass-thru mode"
         return calculated_nonce
 
 
@@ -439,7 +444,8 @@ class ATECC:
         :param bytes message: Up to 64 bytes of data to be included
                                 into the hash operation.
         """
-        print("sha_update: ", message)
+        if not hasattr(message, "append"):
+            message = pack("B", message)
         self.wakeup()
         status = bytearray(1)
         self._send_command(OP_SHA, 0x01, len(message), message)
@@ -450,26 +456,25 @@ class ATECC:
         return status
 
 
-    def sha_digest(self, message=None, result_buff=None):
+    def sha_digest(self, message=None):
         """Returns the digest of the data passed to the
         sha_update method so far.
         :param bytearray message: Up to 64 bytes of data to be included
                                     into the hash operation.
-        :param bytearray result_buff: Returned sha digest, up to 32 bytes.
         """
         self.wakeup()
-        if result_buff is None:
-            # no result buffer provided, allocate one
-            result_buff = bytearray(32)
-        if len(result_buff) > 32:
-            # Reduce the buffer down to 32 bytes
-            result_buff = result_buff[0:32]
-        self._send_command(OP_SHA, 0x02, len(message), message)
+        digest = bytearray(32)
+        
+        # Include optional message
+        #msg = pack("B", message)
+        #self._send_command(OP_SHA, 0x02, len(msg), msg)
+
+        self._send_command(OP_SHA, 0x02)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
-        self._get_response(result_buff)
-        assert len(result_buff) == 32, "SHA response length does not match expected length."
+        self._get_response(digest)
+        assert len(digest) == 32, "SHA response length does not match expected length."
         self.idle()
-        return result_buff
+        return digest
 
 
     def gen_key(self, key, slot_num, private_key=False):
@@ -488,6 +493,36 @@ class ATECC:
         time.sleep(0.001)
         self.idle()
         return key
+
+    def ecdsa_sign(self, slot, message):
+        """Generates and returns a signature using the ECDSA algorithm.
+        :param int slot: Which ECC slot to use.
+        :param bytearray message: Message to be signed.
+        """
+        # Generate an internal random key
+        rand_num = bytearray(32)
+        rand_num = self.random(max=len(rand_num))
+        print(rand_num)
+
+        # Nonce in pass-through mode
+        self.nonce(message, 0x03)
+        sig = bytearray(64)
+        sig = self.sign(slot)
+        return sig
+
+    def sign(self, key_id):
+        """Base Signature Class.
+        """
+        signature = bytearray(64)
+        self.wakeup()
+        print("Sending OP_SIGN")
+        self._send_command(OP_SIGN, 0x80, 0)
+        print("OP SIGN SENT!")
+        time.sleep(50/1000)
+        self._get_response(signature)
+        delay(1/1000)
+        print(signature)
+        return signature
 
     def write_config(self, data):
         """Writes configuration data to the device's EEPROM.
