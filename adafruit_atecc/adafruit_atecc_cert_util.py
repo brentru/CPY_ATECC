@@ -114,26 +114,24 @@ class CSR:
       print("len_csr_info: ", len_csr_info)
       print("len_csr_info_header: ", len_csr_info_header)
 
-      # CSR
+      # CSR Info Packet
       csr_info = bytearray()
 
-      # Append CSR Info
+      # Append CSR Info --> [0:2]
       self.get_sequence_header(len_csr_info, csr_info)
-      #csr_info.append(len_csr_info)
 
-      # Append Version
+      # Append Version --> [3:5]
       self.get_version(csr_info)
-      #csr_info.append(self._cert_info._version_len)
 
-      # Append Subject
-      self.get_sequence_header(len_sub_header, csr_info)
-      #csr_info.append(len_sub_header)
+      # Append Subject --> [6:7]
+      self.get_sequence_header(len_issuer_subject, csr_info)
+      print(csr_info)
+
+      # Append Issuer or Subject
       self.get_issuer_or_subject(csr_info)
-      #csr_info.append(len_issuer_subject)
 
       # Append Public Key
       self.get_public_key(csr_info)
-      #csr_info.append(len_pub_key)
 
       csr_info += b"\xa0\x00"
 
@@ -162,7 +160,6 @@ class CSR:
           data += b"\x81"
         length_byte = struct.pack("B", (length) & 0xff)
         data += length_byte
-        print(data)
 
     def get_version(self, data):
         """Sets X.509 version"""
