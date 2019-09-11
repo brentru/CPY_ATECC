@@ -462,15 +462,13 @@ class ATECC:
         :param bytearray message: Up to 64 bytes of data to be included
                                     into the hash operation.
         """
+        if not hasattr(message, "append"):
+            message = pack("B", message)
         self.wakeup()
-        digest = bytearray(32)
-        
         # Include optional message
-        #msg = pack("B", message)
-        #self._send_command(OP_SHA, 0x02, len(msg), msg)
-
-        self._send_command(OP_SHA, 0x02)
+        self._send_command(OP_SHA, 0x02, len(message), message)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
+        digest = bytearray(32)
         self._get_response(digest)
         assert len(digest) == 32, "SHA response length does not match expected length."
         self.idle()
