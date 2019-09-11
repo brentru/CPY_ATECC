@@ -134,7 +134,8 @@ class CSR:
 
       csr_info += b"\xa0\x00"
 
-      print("CSR INFO: ", csr_info)
+      print(csr_info)
+      print("CSR Length: ", len(csr_info))
 
 
     def get_public_key(self, data):
@@ -180,17 +181,20 @@ class CSR:
 
         # ASN.1 PRINTABLE STRING
         data += b"\x13" + struct.pack("B", len(name))
+        data.extend(name)
         return len(name) + 11
 
     def get_issuer_or_subject(self, data):
       """Appends issuer or subject data, if they exist."""
       if len(self._country) > 0:
-        data.append(self.get_name(self._country, 0x06, data))
+        self.get_name(self._country, 0x06, data)
       if len(self._state_province) > 0:
-        data.append(self.get_name(self._state_province, 0x07, data))
+        self.get_name(self._state_province, 0x08, data)
       if len(self._locality) > 0:
-        data.append(self.get_name(self._locality, 0x0a, data))
+        self.get_name(self._locality, 0x07, data)
       if len(self._org) > 0:
-        data.append(self.get_name(self._org, 0x0b, data))
+        self.get_name(self._org, 0x0a, data)
       if len(self._org_unit) > 0:
-        data.append(self.get_name(self._org_unit, 0x03, data))
+        self.get_name(self._org_unit, 0x0b, data)
+      if len(self._common) > 0:
+        self.get_name(self._common, 0x03, data)
