@@ -125,7 +125,6 @@ class CSR:
 
       # Append Subject --> [6:7]
       self.get_sequence_header(len_issuer_subject, csr_info)
-      print(csr_info)
 
       # Append Issuer or Subject
       self.get_issuer_or_subject(csr_info)
@@ -142,14 +141,12 @@ class CSR:
       """Appends public key subject and object identifiers."""
       # Subject: Public Key
       data += b"\x30\x59\x30\x13"
-
       # Object identifier: EC Public Key
       data += b"\x06\x07\x2a\x82\x47\xce\x3d\x02\x01"
-
       # Object identifier: PRIME 256 v1
       data += b"\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07\x03\x42\x00\x04"
-      # Only copy first 64 bits of public key
-      data += self._pub_key[0:64]
+      # Extend the buffer by the public key
+      data += (self._pub_key)
 
     def get_sequence_header(self, length, data):
         data += b"\x30"
@@ -174,18 +171,15 @@ class CSR:
         :param bytearray data: Buffer to write to.
         """
 
-        data.append(ASN1_SET)
-        data.append(len(name) + 9)
-        
-        data.append(ASN1_SEQUENCE)
-        data.append(len(name) + 7)
+        # ASN.1 SET
+        data += b"\x31" + struct.pack("B", len(name) + 9)
+        # ASN.1 SEQUENCE
+        data += b"\x30" + struct.pack("B", len(name) + 7)
+        # ASN.1 OBJECT IDENTIFIER
+        data += b"\x06\x03\x55\x04" + struct.pack("B", type)
 
-        data += b"\x06\x03\x55\x04"
-        data.append(type)
-
-        data.append(ASN1_PRINTABLE_STRING)
-        data.append(len(name))
-        data += bytearray(name)
+        # ASN.1 PRINTABLE STRING
+        data += b"\x13" + struct.pack("B", len(name))
         return len(name) + 11
 
     def get_issuer_or_subject(self, data):
