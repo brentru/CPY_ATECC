@@ -105,7 +105,7 @@ EXEC_TIME  = {OP_COUNTER: const(20),
                 OP_LOCK: const(32),
                 OP_READ: const(1),
                 OP_GEN_KEY: const(115),
-                OP_SIGN : const(50)}
+                OP_SIGN : const(70)}
 
 
 # Default TLS Configuration
@@ -499,11 +499,12 @@ class ATECC:
         """
         # Generate an internal random key
         rand_num = bytearray(32)
-        rand_num = self.random(max=len(rand_num))
-        print(rand_num)
+        for i in range(len(rand_num)):
+            rand_num[i] = self.random(max=250)
 
-        # Nonce in pass-through mode
+        # Run nonce security command in pass-thru mode
         self.nonce(message, 0x03)
+
         sig = bytearray(64)
         sig = self.sign(slot)
         return sig
@@ -511,15 +512,12 @@ class ATECC:
     def sign(self, key_id):
         """Base Signature Class.
         """
-        signature = bytearray(64)
         self.wakeup()
-        print("Sending OP_SIGN")
-        self._send_command(OP_SIGN, 0x80, 0)
-        print("OP SIGN SENT!")
-        time.sleep(50/1000)
+        self._send_command(0x41, 0x80, 0)
+        time.sleep(EXEC_TIME[OP_SIGN]/1000)
+        signature = bytearray(64)
         self._get_response(signature)
-        delay(1/1000)
-        print(signature)
+        self.idle()
         return signature
 
     def write_config(self, data):
