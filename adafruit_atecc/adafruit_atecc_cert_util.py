@@ -115,50 +115,30 @@ class CSR:
       print("len_csr_info_header: ", len_csr_info_header)
 
       # CSR
-      #csr_info = bytearray(len_csr_info + len_csr_info_header)
       csr_info = bytearray()
 
       # Append CSR Info
       self.get_sequence_header(len_csr_info, csr_info)
-      csr_info.append(len_csr_info)
+      #csr_info.append(len_csr_info)
 
       # Append Version
       self.get_version(csr_info)
-      csr_info.append(self._cert_info._version_len)
+      #csr_info.append(self._cert_info._version_len)
 
       # Append Subject
       self.get_sequence_header(len_sub_header, csr_info)
-      csr_info.append(len_sub_header)
+      #csr_info.append(len_sub_header)
       self.get_issuer_or_subject(csr_info)
-      csr_info.append(len_issuer_subject)
+      #csr_info.append(len_issuer_subject)
 
       # Append Public Key
       self.get_public_key(csr_info)
-      csr_info.append(len_pub_key)
+      #csr_info.append(len_pub_key)
 
       csr_info += b"\xa0\x00"
 
-      # CSR-SHA
-      csr_info_sha = bytearray(64)
-      signature = bytearray(64)
-      # Initialize the SHA-256 calculation engine
-      self._atecc.sha_start()
+      print("CSR INFO: ", csr_info)
 
-      for i in range(0, len_csr_info_header + len_csr_info, 64):
-        chunk_len = len_csr_info_header + len_csr_info - i
-
-        # ensure we're not writing more than 64 bytes at a time
-        if chunk_len > 64:
-          chunk_len = 64
-        # only write 64 bytes at a time
-        if chunk_len==64:
-          # append to the sha message
-          self._atecc.sha_update(struct.pack("B",csr_info[i]))
-        else:
-          print("Digest")
-          csr_info_sha = self._atecc.sha_digest(struct.pack("B", csr_info[i]), csr_info_sha)
-      
-      print(csr_info_sha)
 
     def get_public_key(self, data):
       """Appends public key subject and object identifiers."""
@@ -180,16 +160,16 @@ class CSR:
           data.append((length >> 8) & 0xff)
         elif (length > 127):
           data += b"\x81"
-        data.append((length >> 8) & 0xff)
+        length_byte = struct.pack("B", (length) & 0xff)
+        data += length_byte
+        print(data)
 
     def get_version(self, data):
         """Sets X.509 version"""
-        data[0] = ASN1_INTEGER
         #  If no extensions are present, but a UniqueIdentifier
         # is present, the version SHOULD be 2 (value is 1) [4-1-2]
-        data[1] = 0x01
-        data[2] = 0x00
-    
+        data += b"\x02\x01\x00"
+
     def get_name(self, name, type, data):
         """Appends ASN.1 string in form: set -> seq -> objid -> string
         :param str name: String to append to buffer.
