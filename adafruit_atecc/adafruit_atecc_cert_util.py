@@ -152,8 +152,50 @@ class CSR:
           self._atecc.sha_update(csr_info[i])
         else:
           csr_info_sha_256 = self._atecc.sha_digest(csr_info[i])
+      
+      # Sign the SHA256 Digest
+      signature = bytearray(64)
+      signature = self._atecc.ecdsa_sign(self._slot, csr_info_sha_256)
+
+      # Calculate lengths of post-signature csr
+      len_signature = self.get_signature_length(signature)
+      len_csr = len_csr_info_header + len_csr_info + len_signature
+      len_csr_header = self.get_sequence_header_length(len_csr)
 
 
+    def get_sequence_header_length(self, seq_header_len):
+      """Returns length of SEQUENCE header."""
+      if seq_header_len > 255:
+        return 4
+      elif len > 127:
+        return 3
+      else:
+        return 2
+
+    def get_signature_length(self, signature):
+      """Get length of ECDSA signature.
+      :param bytearray signature: Signed SHA256 hash.
+      """
+      r = signature[0]
+      s = signature[32]
+      r_len = 32
+      s_len = 32
+
+      while (r == 0x00 and r_len > 1):
+        r+=1
+        r_len-=1
+
+      if r & 0x80:
+        r_len+=1
+      
+      while (s == 0x00 and s_len > 1):
+        s+=1
+        s_len-=1
+      
+      if s & 0x80:
+        s_len += 1
+      
+      return (21 + r_len + s_len)
 
     def get_public_key(self, data):
       """Appends public key subject and object identifiers."""
