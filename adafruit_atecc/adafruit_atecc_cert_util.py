@@ -161,29 +161,21 @@ class CSR:
       len_csr_header = self.get_sequence_header_length(len_csr)
 
       # Final CSR
-
-      # NOTE: Buffers line up over here, but not below...
       csr = bytearray()
-      print('Expected Finalized CSR Size: ', len_csr + len_csr_header)
 
-      print(csr_info)
-      
       self.get_sequence_header(len_csr, csr)
-      print(csr)
 
       # append csr_info
       csr += csr_info
-      print(csr)
 
       # append signature to csr
       self.get_signature(signature, csr)
-      print(len(csr))
       print(csr)
 
 
       b64_ascii_data = b2a_base64(csr)
       print('Finalized CSR Size: ', len(csr))
-      print("\n-----BEGIN CERTIFICATE REQUEST-----")
+      print("-----BEGIN CERTIFICATE REQUEST-----")
       print(b64_ascii_data.decode('utf-8'))
       print("-----END CERTIFICATE REQUEST-----")
 
@@ -191,13 +183,9 @@ class CSR:
     def get_signature(self, signature, data):
       """Appends signature data to buffer."""
       # Signature algorithm
-      print("sig algo...")
       data += b"\x30\x0a\x06\x08"
-      print(data)
       # ECDSA with SHA256
-      print("ECDSA with SHA...")
       data += b"\x2a\x86\x48\xce\x3d\x04\x03\x02"
-      print(data)
       r = signature[0]
       s = signature[32]
       r_len = 32
@@ -225,7 +213,8 @@ class CSR:
       if r & 0x80:
         data += b"\x00"
         r_len -= 1
-      data += struct.pack("B", r)
+
+      data += signature[0:r_len]
 
       if r & 0x80:
         r_len += 1
@@ -234,8 +223,8 @@ class CSR:
       if s & 0x80:
         data += b"\x00"
         s_len -= 1
-      data += struct.pack("B", s)
-      data += struct.pack("B", s_len)
+
+      data += signature[s_len:]
 
       if s & 0x80:
         s_len += 1
@@ -280,10 +269,7 @@ class CSR:
     def get_public_key(self, data):
       """Appends public key subject and object identifiers."""
       # Subject: Public Key
-      data += b"\x30"
-      data += struct.pack("B", (0x59) & 0xff)
-      data += b"\x30"
-      data += b"\x13"
+      data += b"\x30" + struct.pack("B", (0x59) & 0xff) + b"\x30\x13"
       # Object identifier: EC Public Key
       data += b"\x06\x07\x2a\x86\x48\xce\x3d\x02\x01"
       # Object identifier: PRIME 256 v1
