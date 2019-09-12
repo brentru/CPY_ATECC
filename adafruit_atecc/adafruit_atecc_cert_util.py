@@ -37,6 +37,7 @@ Implementation Notes
 """
 from micropython import const
 import struct
+from adafruit_binascii import b2a_base64
 import adafruit_atecc.adafruit_atecc_asn1 as asn1
 
 ASN1_INTEGER           = const(0x02)
@@ -135,9 +136,6 @@ class CSR:
       # Termination bits
       csr_info += b"\xa0\x00"
 
-      print('CSR Info: ', csr_info)
-      print("CSR Length: ", len(csr_info))
-
       csr_info_sha_256 = bytearray(64)
 
       # Init. SHA-256 Calculation
@@ -161,6 +159,88 @@ class CSR:
       len_signature = self.get_signature_length(signature)
       len_csr = len_csr_info_header + len_csr_info + len_signature
       len_csr_header = self.get_sequence_header_length(len_csr)
+
+      # Final CSR
+
+      # NOTE: Buffers line up over here, but not below...
+      csr = bytearray()
+      print('Expected Finalized CSR Size: ', len_csr + len_csr_header)
+
+      print(csr_info)
+      
+      self.get_sequence_header(len_csr, csr)
+      print(csr)
+
+      # append csr_info
+      csr += csr_info
+      print(csr)
+
+      # append signature to csr
+      self.get_signature(signature, csr)
+      print(len(csr))
+      print(csr)
+
+
+      b64_ascii_data = b2a_base64(csr)
+      print('Finalized CSR Size: ', len(csr))
+      print("\n-----BEGIN CERTIFICATE REQUEST-----")
+      print(b64_ascii_data.decode('utf-8'))
+      print("-----END CERTIFICATE REQUEST-----")
+
+
+    def get_signature(self, signature, data):
+      """Appends signature data to buffer."""
+      # Signature algorithm
+      print("sig algo...")
+      data += b"\x30\x0a\x06\x08"
+      print(data)
+      # ECDSA with SHA256
+      print("ECDSA with SHA...")
+      data += b"\x2a\x86\x48\xce\x3d\x04\x03\x02"
+      print(data)
+      r = signature[0]
+      s = signature[32]
+      r_len = 32
+      s_len = 32
+
+      while (r == 0x00 and r_len > 1):
+        r+=1
+        r_len-=1
+
+      while (s == 0x00 and s_len > 1):
+        s+=1
+        s_len-=1
+      
+      if r & 0x80:
+        r_len += 1
+
+      if s & 0x80:
+        s_len += 1
+
+      data += b"\x03" + struct.pack("B", r_len + s_len + 7) + b"\x00"
+
+      data += b"\x30" + struct.pack("B", r_len + s_len + 4)
+
+      data += b"\x02" + struct.pack("B", r_len)
+      if r & 0x80:
+        data += b"\x00"
+        r_len -= 1
+      data += struct.pack("B", r)
+
+      if r & 0x80:
+        r_len += 1
+      
+      data += b"\x02" + struct.pack("B", s_len)
+      if s & 0x80:
+        data += b"\x00"
+        s_len -= 1
+      data += struct.pack("B", s)
+      data += struct.pack("B", s_len)
+
+      if s & 0x80:
+        s_len += 1
+
+      return (21 + r_len + s_len)
 
 
     def get_sequence_header_length(self, seq_header_len):
@@ -200,9 +280,12 @@ class CSR:
     def get_public_key(self, data):
       """Appends public key subject and object identifiers."""
       # Subject: Public Key
-      data += b"\x30\x59\x30\x13"
+      data += b"\x30"
+      data += struct.pack("B", (0x59) & 0xff)
+      data += b"\x30"
+      data += b"\x13"
       # Object identifier: EC Public Key
-      data += b"\x06\x07\x2a\x82\x47\xce\x3d\x02\x01"
+      data += b"\x06\x07\x2a\x86\x48\xce\x3d\x02\x01"
       # Object identifier: PRIME 256 v1
       data += b"\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07\x03\x42\x00\x04"
       # Extend the buffer by the public key
