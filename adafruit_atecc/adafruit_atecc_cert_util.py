@@ -107,14 +107,6 @@ class CSR:
       len_csr_info = self._cert_info._version_len + len_issuer_subject + len_sub_header + len_pub_key + 2
       len_csr_info_header = asn1.seq_header_length(len_csr_info)
 
-      # Debug, TODO: Remove!
-      print("Version Length:", self._cert_info._version_len)
-      print("len_issuer_subject: ", len_issuer_subject)
-      print("len_sub_header: ", len_sub_header)
-      print("len_pub_key: ", len_pub_key)
-      print("len_csr_info: ", len_csr_info)
-      print("len_csr_info_header: ", len_csr_info_header)
-
       # CSR Info Packet
       csr_info = bytearray()
 
@@ -149,11 +141,12 @@ class CSR:
         if chunk_len == 64:
           self._atecc.sha_update(csr_info[i])
         else:
-          csr_info_sha_256 = self._atecc.sha_digest(csr_info[i])
-      
+          csr_info_sha_256 = self._atecc.sha_digest(csr_info[i:])
+
       # Sign the SHA256 Digest
       signature = bytearray(64)
       signature = self._atecc.ecdsa_sign(self._slot, csr_info_sha_256)
+      print('Sig: ', signature)
 
       # Calculate lengths of post-signature csr
       len_signature = self.get_signature_length(signature)
@@ -170,11 +163,12 @@ class CSR:
 
       # append signature to csr
       self.get_signature(signature, csr)
-      print(csr)
 
 
       b64_ascii_data = b2a_base64(csr)
       print('Finalized CSR Size: ', len(csr))
+      print(csr)
+
       print("-----BEGIN CERTIFICATE REQUEST-----")
       print(b64_ascii_data.decode('utf-8'))
       print("-----END CERTIFICATE REQUEST-----")
@@ -213,8 +207,9 @@ class CSR:
       if r & 0x80:
         data += b"\x00"
         r_len -= 1
-
-      data += signature[0:r_len]
+      print(len(signature))
+      print(signature)
+      data += signature[0:31]
 
       if r & 0x80:
         r_len += 1
@@ -224,7 +219,7 @@ class CSR:
         data += b"\x00"
         s_len -= 1
 
-      data += signature[s_len:]
+      data += signature[31:64]
 
       if s & 0x80:
         s_len += 1
