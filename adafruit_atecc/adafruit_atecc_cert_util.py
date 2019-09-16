@@ -108,7 +108,7 @@ class CSR:
         len_sub_header = asn1.seq_header_length(len_issuer_subject)
         len_pub_key = 2 + 2 + 9 + 10 + 4 + 64
 
-        len_csr_info = self._cert_info._version_len + len_issuer_subject
+        len_csr_info = self._cert_info.version_len + len_issuer_subject
         len_csr_info += len_sub_header + len_pub_key + 2
         len_csr_info_header = asn1.seq_header_length(len_csr_info)
 
