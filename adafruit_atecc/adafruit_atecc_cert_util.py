@@ -82,6 +82,7 @@ class CSR:
         """
         self._csr_begin()
         csr = self._csr_end()
+        return csr
 
     def _csr_begin(self):
         """Initializes CSR generation
@@ -163,12 +164,8 @@ class CSR:
       # append signature to csr
       self.get_signature(signature, csr)
 
-      b64_ascii_data = b2a_base64(csr)
-
-      print("-----BEGIN CERTIFICATE REQUEST-----")
-      print(b64_ascii_data.decode('utf-8'))
-      print("-----END CERTIFICATE REQUEST-----")
-
+      csr = b2a_base64(csr)
+      return csr
 
     def get_signature(self, signature, data):
       """Appends signature data to buffer."""

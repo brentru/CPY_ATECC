@@ -450,7 +450,6 @@ class ATECC:
             message = pack("B", message)
         self.wakeup()
         status = bytearray(1)
-        print("Sha Update Data: ", message)
         assert len(message) == 64, "Message provided to sha_update must be 64 bytes"
         self._send_command(OP_SHA, 0x01, 64, message)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
@@ -491,9 +490,9 @@ class ATECC:
         assert 0 <= slot_num <= 4, "Provided slot must be between 0 and 4."
         self.wakeup()
         if private_key:
-            self._send_command(OP_GEN_KEY, 0x04, 0)
+            self._send_command(OP_GEN_KEY, 0x04, slot_num)
         else:
-            self._send_command(OP_GEN_KEY, 0x00, 0)
+            self._send_command(OP_GEN_KEY, 0x00, slot_num)
         time.sleep(EXEC_TIME[OP_GEN_KEY]/1000)
         self._get_response(key)
         time.sleep(0.001)
@@ -512,7 +511,7 @@ class ATECC:
         self.nonce(message, 0x03)
 
         sig = bytearray(64)
-        sig = self.sign(0, message)
+        sig = self.sign(slot, message)
         return sig
 
     def sign(self, key_id, message):
