@@ -318,13 +318,16 @@ class ATECC:
         assert res[0] == 0x00, "Failed locking ATECC!"
         return res
 
-    def info(self, mode):
+    def info(self, mode, param=None):
         """Access to statatic or dynamic information based on the
         value of the mode.
         :param int mode: Mode encoding, see Table 9-26.
         """
         self.wakeup()
-        self._send_command(OP_INFO, mode)
+        if not param:
+            self._send_command(OP_INFO, mode)
+        else:
+            self._send_command(OP_INFO, mode, param)
         time.sleep(EXEC_TIME[OP_INFO]/1000)
         info_out = bytearray(4)
         self._get_response(info_out)
@@ -462,11 +465,14 @@ class ATECC:
         :param bytearray message: Up to 64 bytes of data to be included
                                     into the hash operation.
         """
-        if not hasattr(message, "append"):
+        if not hasattr(message, "append") and message is not None:
             message = pack("B", message)
         self.wakeup()
         # Include optional message
-        self._send_command(OP_SHA, 0x02, len(message), message)
+        if message:
+            self._send_command(OP_SHA, 0x02, len(message), message)
+        else:
+            self._send_command(OP_SHA, 0x02)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
         digest = bytearray(32)
         self._get_response(digest)
@@ -497,24 +503,30 @@ class ATECC:
         :param int slot: Which ECC slot to use.
         :param bytearray message: Message to be signed.
         """
-        # Generate an internal random key
-        rand_num = bytearray(32)
-        for i in range(len(rand_num)):
-            rand_num[i] = self.random(max=250)
-
-        # Run nonce security command in pass-thru mode
+        # Generate 32b tmpkey for nonce
+        rand_num = self._random(bytearray(32))
+        # Nonce in passthru mode
         self.nonce(message, 0x03)
+        # Check TempKey
+        if self._debug:
+            validkey = bytes(1)
+            validkey = self.info(0x01, slot)
+            print("Key Valid? ", validkey[0])
+
+            keystate = bytearray(16)
+            keystate = self.info(0x02, 0x00)
+            print("Key State: ", keystate)
 
         sig = bytearray(64)
-        sig = self.sign(slot)
+        sig = self.sign(slot, message)
         return sig
 
-    def sign(self, key_id):
+    def sign(self, key_id, message):
         """Base Signature Class.
         """
         self.wakeup()
-        self._send_command(0x41, 0x80, 0)
-        time.sleep(EXEC_TIME[OP_SIGN]/1000)
+        self._send_command(0x41, 0x80, key_id)
+        time.sleep(70/1000)
         signature = bytearray(64)
         self._get_response(signature)
         self.idle()
