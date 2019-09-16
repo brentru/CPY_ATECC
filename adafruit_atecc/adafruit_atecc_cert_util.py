@@ -203,9 +203,7 @@ class CSR:
       if r & 0x80:
         data += b"\x00"
         r_len -= 1
-      print(len(signature))
-      print(signature)
-      data += signature[0:31]
+      data += signature[0:r_len]
 
       if r & 0x80:
         r_len += 1
@@ -215,7 +213,7 @@ class CSR:
         data += b"\x00"
         s_len -= 1
 
-      data += signature[31:64]
+      data += signature[s_len:]
 
       if s & 0x80:
         s_len += 1
