@@ -44,12 +44,12 @@ ASN1_INTEGER = const(0x02)
 ASN1_BIT_STRING = const(0x03)
 ASN1_NULL = const(0x05)
 ASN1_OBJECT_IDENTIFIER = const(0x06)
-ASN1_PRINTABLE_STRING  = const(0x13)
+ASN1_PRINTABLE_STRING = const(0x13)
 ASN1_SEQUENCE = const(0x30)
 ASN1_SET = const(0x31)
 
 # Subject public key data length, fixed.
-SUB_PUB_KEY_DATA_LEN   = const(0x59)
+SUB_PUB_KEY_DATA_LEN = const(0x59)
 
 class CSR:
     """Certificate signing request generation.
@@ -105,7 +105,8 @@ class CSR:
         len_sub_header = asn1.seq_header_length(len_issuer_subject)
         len_pub_key = 2 + 2 + 9 + 10 + 4 + 64
 
-        len_csr_info = self._cert_info._version_len + len_issuer_subject + len_sub_header + len_pub_key + 2
+        len_csr_info = self._cert_info._version_len + len_issuer_subject
+        len_csr_info += len_sub_header + len_pub_key + 2
         len_csr_info_header = asn1.seq_header_length(len_csr_info)
 
         # CSR Info Packet
@@ -135,14 +136,14 @@ class CSR:
         self._atecc.sha_start()
 
         for i in range(0, len_csr_info + len_csr_info_header, 64):
-          chunk_len = (len_csr_info_header + len_csr_info) - i
+            chunk_len = (len_csr_info_header + len_csr_info) - i
 
-          if chunk_len > 64:
-            chunk_len = 64
-          if chunk_len == 64:
-            self._atecc.sha_update(csr_info[i:i+64])
-          else:
-            csr_info_sha_256 = self._atecc.sha_digest(csr_info[i:])
+            if chunk_len > 64:
+                chunk_len = 64
+            if chunk_len == 64:
+                self._atecc.sha_update(csr_info[i:i+64])
+            else:
+                csr_info_sha_256 = self._atecc.sha_digest(csr_info[i:])
 
         # Sign the SHA256 Digest
         signature = bytearray(64)
@@ -151,7 +152,7 @@ class CSR:
         # Calculate lengths of post-signature csr
         len_signature = self.get_signature_length(signature)
         len_csr = len_csr_info_header + len_csr_info + len_signature
-        len_csr_header = self.get_sequence_header_length(len_csr)
+        self.get_sequence_header_length(len_csr)
 
         # Final CSR
         csr = bytearray()
@@ -167,119 +168,124 @@ class CSR:
         csr = b2a_base64(csr)
         return csr
 
-    def get_signature(self, signature, data):
-      """Appends signature data to buffer."""
-      # Signature algorithm
-      data += b"\x30\x0a\x06\x08"
-      # ECDSA with SHA256
-      data += b"\x2a\x86\x48\xce\x3d\x04\x03\x02"
-      r = signature[0]
-      s = signature[32]
-      r_len = 32
-      s_len = 32
+    @staticmethod
+    def get_signature(signature, data):
+        """Appends signature data to buffer."""
+        # Signature algorithm
+        data += b"\x30\x0a\x06\x08"
+        # ECDSA with SHA256
+        data += b"\x2a\x86\x48\xce\x3d\x04\x03\x02"
+        r = signature[0]
+        s = signature[32]
+        r_len = 32
+        s_len = 32
 
-      while (r == 0x00 and r_len > 1):
-        r+=1
-        r_len-=1
+        while (r == 0x00 and r_len > 1):
+            r += 1
+            r_len -= 1
 
-      while (s == 0x00 and s_len > 1):
-        s+=1
-        s_len-=1
-      
-      if r & 0x80:
-        r_len += 1
+        while (s == 0x00 and s_len > 1):
+            s += 1
+            s_len -= 1
 
-      if s & 0x80:
-        s_len += 1
+        if r & 0x80:
+            r_len += 1
 
-      data += b"\x03" + struct.pack("B", r_len + s_len + 7) + b"\x00"
+        if s & 0x80:
+            s_len += 1
 
-      data += b"\x30" + struct.pack("B", r_len + s_len + 4)
+        data += b"\x03" + struct.pack("B", r_len + s_len + 7) + b"\x00"
 
-      data += b"\x02" + struct.pack("B", r_len)
-      if r & 0x80:
-        data += b"\x00"
-        r_len -= 1
-      data += signature[0:r_len]
+        data += b"\x30" + struct.pack("B", r_len + s_len + 4)
 
-      if r & 0x80:
-        r_len += 1
-      
-      data += b"\x02" + struct.pack("B", s_len)
-      if s & 0x80:
-        data += b"\x00"
-        s_len -= 1
+        data += b"\x02" + struct.pack("B", r_len)
+        if r & 0x80:
+            data += b"\x00"
+            r_len -= 1
+        data += signature[0:r_len]
 
-      data += signature[s_len:]
+        if r & 0x80:
+            r_len += 1
 
-      if s & 0x80:
-        s_len += 1
+        data += b"\x02" + struct.pack("B", s_len)
+        if s & 0x80:
+            data += b"\x00"
+            s_len -= 1
 
-      return (21 + r_len + s_len)
+        data += signature[s_len:]
+
+        if s & 0x80:
+            s_len += 1
+
+        return 21 + r_len + s_len
 
 
-    def get_sequence_header_length(self, seq_header_len):
-      """Returns length of SEQUENCE header."""
-      if seq_header_len > 255:
-        return 4
-      elif len > 127:
-        return 3
-      else:
+    @staticmethod
+    def get_sequence_header_length(seq_header_len):
+        """Returns length of SEQUENCE header."""
+        if seq_header_len > 255:
+            return 4
+        if seq_header_len > 127:
+            return 3
         return 2
 
-    def get_signature_length(self, signature):
-      """Get length of ECDSA signature.
-      :param bytearray signature: Signed SHA256 hash.
-      """
-      r = signature[0]
-      s = signature[32]
-      r_len = 32
-      s_len = 32
+    @staticmethod
+    def get_signature_length(signature):
+        """Get length of ECDSA signature.
+        :param bytearray signature: Signed SHA256 hash.
+        """
+        r = signature[0]
+        s = signature[32]
+        r_len = 32
+        s_len = 32
 
-      while (r == 0x00 and r_len > 1):
-        r+=1
-        r_len-=1
+        while (r == 0x00 and r_len > 1):
+            r += 1
+            r_len -= 1
 
-      if r & 0x80:
-        r_len+=1
-      
-      while (s == 0x00 and s_len > 1):
-        s+=1
-        s_len-=1
-      
-      if s & 0x80:
-        s_len += 1
-      
-      return (21 + r_len + s_len)
+        if r & 0x80:
+            r_len += 1
+
+        while (s == 0x00 and s_len > 1):
+            s += 1
+            s_len -= 1
+
+        if s & 0x80:
+            s_len += 1
+        return 21 + r_len + s_len
 
     def get_public_key(self, data):
-      """Appends public key subject and object identifiers."""
-      # Subject: Public Key
-      data += b"\x30" + struct.pack("B", (0x59) & 0xff) + b"\x30\x13"
-      # Object identifier: EC Public Key
-      data += b"\x06\x07\x2a\x86\x48\xce\x3d\x02\x01"
-      # Object identifier: PRIME 256 v1
-      data += b"\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07\x03\x42\x00\x04"
-      # Extend the buffer by the public key
-      data += (self._pub_key)
+        """Appends public key subject and object identifiers."""
+        # Subject: Public Key
+        data += b"\x30" + struct.pack("B", (0x59) & 0xff) + b"\x30\x13"
+        # Object identifier: EC Public Key
+        data += b"\x06\x07\x2a\x86\x48\xce\x3d\x02\x01"
+        # Object identifier: PRIME 256 v1
+        data += b"\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07\x03\x42\x00\x04"
+        # Extend the buffer by the public key
+        data += (self._pub_key)
 
-    def get_sequence_header(self, length, data):
+    @staticmethod
+    def get_sequence_header(length, data):
+        """Appends sequence header to data."""
         data += b"\x30"
         if length > 255:
-          data += b"\x82"
-          data.append((length >> 8) & 0xff)
-        elif (length > 127):
-          data += b"\x81"
+            data += b"\x82"
+            data.append((length >> 8) & 0xff)
+        elif length > 127:
+            data += b"\x81"
         length_byte = struct.pack("B", (length) & 0xff)
         data += length_byte
 
-    def get_version(self, data):
+    @staticmethod
+    def get_version(data):
         """Sets X.509 version"""
         #  If no extensions are present, but a UniqueIdentifier
         # is present, the version SHOULD be 2 (value is 1) [4-1-2]
         data += b"\x02\x01\x00"
 
-    def get_name(self, name, type, data):
+    @staticmethod
+    def get_name(name, type, data):
         """Appends ASN.1 string in form: set -> seq -> objid -> string
         :param str name: String to append to buffer.
         :param int type: Object identifier type.
@@ -299,16 +305,16 @@ class CSR:
         return len(name) + 11
 
     def get_issuer_or_subject(self, data):
-      """Appends issuer or subject data, if they exist."""
-      if self._country:
-        self.get_name(self._country, 0x06, data)
-      if self._state_province > 0:
-        self.get_name(self._state_province, 0x08, data)
-      if self._locality > 0:
-        self.get_name(self._locality, 0x07, data)
-      if self._org > 0:
-        self.get_name(self._org, 0x0a, data)
-      if self._org_unit > 0:
-        self.get_name(self._org_unit, 0x0b, data)
-      if self._common > 0:
-        self.get_name(self._common, 0x03, data)
+        """Appends issuer or subject data, if they exist."""
+        if self._country:
+            self.get_name(self._country, 0x06, data)
+        if self._state_province:
+            self.get_name(self._state_province, 0x08, data)
+        if self._locality:
+            self.get_name(self._locality, 0x07, data)
+        if self._org:
+            self.get_name(self._org, 0x0a, data)
+        if self._org_unit:
+            self.get_name(self._org_unit, 0x0b, data)
+        if self._common:
+            self.get_name(self._common, 0x03, data)
