@@ -86,112 +86,86 @@ OP_SIGN = const(0x41)
 
 
 # Status/Error Codes (9-3)
-STATUS_ERROR_CODES =   {const(0x00), "Command executed successfully.",
-                        const(0x01), "CheckMac/Verify sent, input does not match expected value.",
-                        const(0x03), "Parse Error - Illegal parameters provided.",
-                        const(0x05), "Computation error occured during ECC processing. Please retry.",
-                        const(0x0F), "Execution Error - Command could not be executed by the device in its current state",
-                        const(0x11), "ATECC RX'd Wake token.",
-                        const(0xEE), "Watchdog About to Expire.",
-                        const(0xFF), "CRC or Communication Error"}
+STATUS_ERROR_CODES = {const(0x00), "Command executed successfully.",
+                      const(0x01), "CheckMac/Verify sent, input does not match expected value.",
+                      const(0x03), "Parse Error - Illegal parameters provided.",
+                      const(0x05), "Computation error occured during ECC processing. Please retry.",
+                      const(0x0F), "Execution Error",
+                      const(0x11), "ATECC RX'd Wake token.",
+                      const(0xEE), "Watchdog About to Expire.",
+                      const(0xFF), "CRC or Communication Error"}
 
 # Maximum execution times, in milliseconds (9-4)
-EXEC_TIME  = {OP_COUNTER: const(20),
-                OP_INFO: const(1),
-                OP_NONCE: const(7),
-                OP_RANDOM: const(23),
-                OP_SHA: const(47),
-                OP_MAC: const(14),
-                OP_LOCK: const(32),
-                OP_READ: const(1),
-                OP_GEN_KEY: const(115),
-                OP_SIGN : const(70)}
+EXEC_TIME = {OP_COUNTER: const(20),
+             OP_INFO: const(1),
+             OP_NONCE: const(7),
+             OP_RANDOM: const(23),
+             OP_SHA: const(47),
+             OP_MAC: const(14),
+             OP_LOCK: const(32),
+             OP_READ: const(1),
+             OP_GEN_KEY: const(115),
+             OP_SIGN : const(70)}
 
 
 # Default TLS Configuration
 # TODO: change this to a tuple!!
 CFG_TLS = bytes([
-  # Read only - start
-  # SN[0:3]
-  0x01, 0x23, 0x00, 0x00,
-  # RevNum
-  0x00, 0x00, 0x50, 0x00,
-  # SN[4:8]
-  0x00, 0x00, 0x00, 0x00, 0x00,
-  # Reserved
-  0xC0,
-  # I2C_Enable
-  0x71,
-  # Reserved                  
-  0x00,
-  # Read only - end
-  # I2C_Address
-  0xC0,
-  # Reserved
-  0x00,
-  # OTPmode
-  0x55,
-  # ChipMode
-  0x00,
-  # SlotConfig
-  0x83, 0x20, # External Signatures | Internal Signatures | IsSecret | Write Configure Never, Default: 0x83, 0x20, 
-  0x87, 0x20, # External Signatures | Internal Signatures | ECDH | IsSecret | Write Configure Never, Default: 0x87, 0x20,
-  0x87, 0x20, # External Signatures | Internal Signatures | ECDH | IsSecret | Write Configure Never, Default: 0x8F, 0x20,
-  0x87, 0x2F, # External Signatures | Internal Signatures | ECDH | IsSecret | WriteKey all slots | Write Configure Never, Default: 0xC4, 0x8F,
-  0x87, 0x2F, # External Signatures | Internal Signatures | ECDH | IsSecret | WriteKey all slots | Write Configure Never, Default: 0x8F, 0x8F, 
-  0x8F, 0x8F,
-  0x9F, 0x8F, 
-  0xAF, 0x8F,
-  0x00, 0x00, 
-  0x00, 0x00,
-  0x00, 0x00, 
-  0x00, 0x00,
-  0x00, 0x00,
-  0x00, 0x00,
-  0x00, 0x00, 
-  0xAF, 0x8F,
-  # Counter[0]
-  0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
-  # Counter[1]
-  0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
-  # LastKeyUse
-  0xFF, 0xFF, 0xFF, 0xFF,
-  0xFF, 0xFF, 0xFF, 0xFF,
-  0xFF, 0xFF, 0xFF, 0xFF,
-  0xFF, 0xFF, 0xFF, 0xFF,
-# Write via commands only - start
-  # UserExtra
-  0x00, 
-  # Selector
-  0x00,
-  # LockValue
-  0x55,
-  # LockConfig
-  0x55,
-  # SlotLocked
-  0xFF, 0xFF,
-# Write via commands only - end
-  # RFU
-  0x00, 0x00,
-  # X509format
-  0x00, 0x00, 0x00, 0x00,
-  # KeyConfig
-  0x33, 0x00, # Private | Public | P256 NIST ECC key, Default: 0x33, 0x00,
-  0x33, 0x00, # Private | Public | P256 NIST ECC key, Default: 0x33, 0x00,
-  0x33, 0x00, # Private | Public | P256 NIST ECC key, Default: 0x33, 0x00,
-  0x33, 0x00, # Private | Public | P256 NIST ECC key, Default: 0x1C, 0x00,
-  0x33, 0x00, # Private | Public | P256 NIST ECC key, Default: 0x1C, 0x00,
-  0x1C, 0x00,
-  0x1C, 0x00,
-  0x1C, 0x00,
-  0x3C, 0x00,
-  0x3C, 0x00,
-  0x3C, 0x00,
-  0x3C, 0x00,
-  0x3C, 0x00,
-  0x3C, 0x00,
-  0x3C, 0x00,
-  0x1C, 0x00])
+    0x01, 0x23, 0x00, 0x00,
+    0x00, 0x00, 0x50, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC0,
+    0x71,
+    0x00,
+    0xC0,
+    0x00,
+    0x55,
+    0x00,
+    0x83, 0x20,
+    0x87, 0x20,
+    0x87, 0x20,
+    0x87, 0x2F,
+    0x87, 0x2F,
+    0x8F, 0x8F,
+    0x9F, 0x8F,
+    0xAF, 0x8F,
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00,
+    0xAF, 0x8F,
+    0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0x00,
+    0x00,
+    0x55,
+    0x55,
+    0xFF, 0xFF,
+    0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x33, 0x00,
+    0x33, 0x00,
+    0x33, 0x00,
+    0x33, 0x00,
+    0x33, 0x00,
+    0x1C, 0x00,
+    0x1C, 0x00,
+    0x1C, 0x00,
+    0x3C, 0x00,
+    0x3C, 0x00,
+    0x3C, 0x00,
+    0x3C, 0x00,
+    0x3C, 0x00,
+    0x3C, 0x00,
+    0x3C, 0x00,
+    0x1C, 0x00])
 
 class ATECC:
     """
@@ -209,7 +183,7 @@ class ATECC:
         self._i2c_device = None
         self.wakeup()
         if not self._i2c_device:
-            self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR)
+            self._i2c_device = I2CDevice(self._i2c_bus, address)
         self.idle()
         if (self.version() >> 8) not in (_ATECC_508_VER, _ATECC_608_VER):
             raise RuntimeError("Failed to find 608 or 508 chip. Please check your wiring.")
@@ -470,7 +444,6 @@ class ATECC:
         self.wakeup()
         # Include optional message
         if message:
-            print("MSG: ", message)
             self._send_command(OP_SHA, 0x02, len(message), message)
         else:
             self._send_command(OP_SHA, 0x02)
