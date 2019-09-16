@@ -64,6 +64,7 @@ class CSR:
     :param str org_unit: Organizational unit name.
 
     """
+    # pylint: disable=too-many-arguments
     def __init__(self, atecc, slot_num, private_key, country, state_prov,
                  city, org, org_unit):
         self._atecc = atecc
@@ -75,6 +76,8 @@ class CSR:
         self._org = org
         self._org_unit = org_unit
         self._common = self._atecc.serial_number
+        self._cert_info = None
+        self._pub_key = None
 
     def generate_csr(self):
         """Generates and returns
@@ -169,6 +172,7 @@ class CSR:
         return csr
 
     @staticmethod
+    # pylint: disable=invalid-name
     def get_signature(signature, data):
         """Appends signature data to buffer."""
         # Signature algorithm
@@ -230,6 +234,7 @@ class CSR:
         return 2
 
     @staticmethod
+    # pylint: disable=invalid-name
     def get_signature_length(signature):
         """Get length of ECDSA signature.
         :param bytearray signature: Signed SHA256 hash.
@@ -285,10 +290,10 @@ class CSR:
         data += b"\x02\x01\x00"
 
     @staticmethod
-    def get_name(name, type, data):
+    def get_name(name, obj_type, data):
         """Appends ASN.1 string in form: set -> seq -> objid -> string
         :param str name: String to append to buffer.
-        :param int type: Object identifier type.
+        :param int obj_type: Object identifier type.
         :param bytearray data: Buffer to write to.
         """
 
@@ -297,7 +302,7 @@ class CSR:
         # ASN.1 SEQUENCE
         data += b"\x30" + struct.pack("B", len(name) + 7)
         # ASN.1 OBJECT IDENTIFIER
-        data += b"\x06\x03\x55\x04" + struct.pack("B", type)
+        data += b"\x06\x03\x55\x04" + struct.pack("B", obj_type)
 
         # ASN.1 PRINTABLE STRING
         data += b"\x13" + struct.pack("B", len(name))
