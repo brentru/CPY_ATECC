@@ -352,7 +352,6 @@ class ATECC:
             # Operating in Nonce pass-through mode
             assert len(data) == 32, "Data value must be 32 bytes long."
             self._send_command(OP_NONCE, mode, zero, data)
-            # Single byte with zero if mode is 0x03
             calculated_nonce = bytearray(1)
         else:
             raise RuntimeError("Invalid mode specified!")
@@ -503,19 +502,11 @@ class ATECC:
         :param int slot: Which ECC slot to use.
         :param bytearray message: Message to be signed.
         """
-        # Generate 32b tmpkey for nonce
+        # Generate 32b tmpkey
         rand_num = self._random(bytearray(32))
-        # Nonce in passthru mode
-        self.nonce(message, 0x03)
-        # Check TempKey
-        if self._debug:
-            validkey = bytes(1)
-            validkey = self.info(0x01, slot)
-            print("Key Valid? ", validkey[0])
 
-            keystate = bytearray(16)
-            keystate = self.info(0x02, 0x00)
-            print("Key State: ", keystate)
+        # Load the message digest into TempKey using Nonce (9.1.8)
+        self.nonce(message, 0x03)
 
         sig = bytearray(64)
         sig = self.sign(slot, message)
@@ -526,7 +517,7 @@ class ATECC:
         """
         self.wakeup()
         self._send_command(0x41, 0x80, key_id)
-        time.sleep(70/1000)
+        time.sleep(EXEC_TIME[OP_SIGN]/1000)
         signature = bytearray(64)
         self._get_response(signature)
         self.idle()
