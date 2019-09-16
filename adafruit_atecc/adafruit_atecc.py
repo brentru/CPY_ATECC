@@ -44,12 +44,10 @@ Implementation Notes
 
 """
 import time
-import board
+from struct import pack
 from micropython import const
-import busio
 from adafruit_bus_device.i2c_device import I2CDevice
 from adafruit_binascii import hexlify
-from struct import pack
 
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_ATECC.git"
@@ -83,17 +81,6 @@ OP_LOCK = const(0x17)
 OP_READ = const(0x02)
 OP_GEN_KEY = const(0x40)
 OP_SIGN = const(0x41)
-
-
-# Status/Error Codes (9-3)
-STATUS_ERROR_CODES = {const(0x00), "Command executed successfully.",
-                      const(0x01), "CheckMac/Verify sent, input does not match expected value.",
-                      const(0x03), "Parse Error - Illegal parameters provided.",
-                      const(0x05), "Computation error occured during ECC processing. Please retry.",
-                      const(0x0F), "Execution Error",
-                      const(0x11), "ATECC RX'd Wake token.",
-                      const(0xEE), "Watchdog About to Expire.",
-                      const(0xFF), "CRC or Communication Error"}
 
 # Maximum execution times, in milliseconds (9-4)
 EXEC_TIME = {OP_COUNTER: const(20),
@@ -171,14 +158,14 @@ class ATECC:
     """
     CircuitPython interface for ATECCx08A Crypto Co-Processor Devices.
     """
-    def __init__(self, i2c_bus, address = _REG_ATECC_DEVICE_ADDR, debug=False):
+    def __init__(self, i2c_bus, address=_REG_ATECC_DEVICE_ADDR, debug=False):
         """Initializes an ATECC device.
         :param busio i2c_bus: I2C Bus object.
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
         :param bool debug: Library debugging enabled
         """
         self._debug = debug
-        self._I2CBUF = bytearray(12)
+        self._i2cbuf = bytearray(12)
         self._i2c_bus = i2c_bus
         self._i2c_device = None
         self.wakeup()
@@ -218,15 +205,21 @@ class ATECC:
             raise RuntimeError("Failed to wakeup")
 
     def idle(self):
-        self._I2CBUF[0] = 0x2
+        """Puts the chip into idle mode
+        until wakeup is called.
+        """
+        self._i2cbuf[0] = 0x2
         with self._i2c_device as i2c:
-            i2c.write(self._I2CBUF, end=1)
+            i2c.write(self._i2cbuf, end=1)
         time.sleep(0.001)
 
     def sleep(self):
-        self._I2CBUF[0] = 0x1
+        """Puts the chip into low-power
+        sleep mode until wakeup is called.
+        """
+        self._i2cbuf[0] = 0x1
         with self._i2c_device as i2c:
-            i2c.write(self._I2CBUF, end=1)
+            i2c.write(self._i2cbuf, end=1)
         time.sleep(0.001)
 
     def version(self):
@@ -269,7 +262,7 @@ class ATECC:
         return serial_num
 
     def lock(self, lock_config=False, lock_data_otp=False,
-                lock_data=False):
+             lock_data=False):
         """Locks specific zones of the ATECC.
         :param bool lock_config: Lock the configuration zone.
         :param bool lock_data_otp: Lock the data and OTP zones.
@@ -316,7 +309,7 @@ class ATECC:
         :param int zero: Param2, see Table 9-35.
         """
         self.wakeup()
-        if mode == 0x00 or mode == 0x01:
+        if mode in (0x00, 0x01):
             if zero == 0x00:
                 assert len(data) == 20, "Data value must be 20 bytes long."
             self._send_command(OP_NONCE, mode, zero, data)
@@ -348,7 +341,7 @@ class ATECC:
         """
         count = bytearray(4)
         self.wakeup()
-        counter= 0x00
+        counter = 0x00
         if counter == 1:
             counter = 0x01
         if increment_counter:
@@ -361,26 +354,25 @@ class ATECC:
         return count
 
 
-    def random(self, min=0, max=0):
+    def random(self, rnd_min=0, rnd_max=0):
         """Generates a random number for use by the system.
-        :param int min: Minimum Random value to generate
-        :param int max: Maximum random value to generate
+        :param int rnd_min: Minimum Random value to generate
+        :param int rnd_max: Maximum random value to generate
         """
-        if max:
-            min = 0
-        if min >= max:
-            return min
-        delta = max - min
+        if rnd_max:
+            rnd_min = 0
+        if rnd_min >= rnd_max:
+            return rnd_min
+        delta = rnd_max - rnd_min
         r = bytes(16)
         r = self._random(r)
         data = 0
-        for i in range(0, len(r)):
-            d = r[i]
-            data +=d
+        for i in enumerate(r):
+            data += r[i]
         if data < 0:
             data = -data
         data = data % delta
-        return data + min
+        return data + rnd_min
 
 
     def _random(self, data):
@@ -477,17 +469,14 @@ class ATECC:
         :param int slot: Which ECC slot to use.
         :param bytearray message: Message to be signed.
         """
-        # Generate 32b tmpkey
-        rand_num = self._random(bytearray(32))
-
         # Load the message digest into TempKey using Nonce (9.1.8)
         self.nonce(message, 0x03)
-
+        # Generate and return a signature
         sig = bytearray(64)
-        sig = self.sign(slot, message)
+        sig = self.sign(slot)
         return sig
 
-    def sign(self, key_id, message):
+    def sign(self, key_id):
         """Base Signature Class.
         """
         self.wakeup()
@@ -508,14 +497,14 @@ class ATECC:
                 continue
             try:
                 self._write(0, i/4, data[i])
-            except:
-                RuntimeError("Writing ATECC configuration failed")
+            except OSError:
+                RuntimeError("Writing ATECC configuration failed!")
 
     def _write(self, zone, address, buffer):
         self.wakeup()
         buffer = bytearray(buffer)
         if len(buffer) not in (4, 32):
-            raise RuntimeError("Only 4 and 32 byte writes supported")
+            raise RuntimeError("Only 4 and 32 byte writes supported.")
         if len(buffer) == 32:
             zone |= 0x80
         self._send_command(0x12, zone, address, buffer)
@@ -536,7 +525,7 @@ class ATECC:
         time.sleep(0.001)
         self.idle()
 
-    def _send_command(self, opcode, param_1, param_2=0x00, data = ''):
+    def _send_command(self, opcode, param_1, param_2=0x00, data=''):
         """Sends a security command packet over i2c.
         :param byte opcode: The command Opcode
         :param byte param_1: The first parameter
@@ -554,11 +543,11 @@ class ATECC:
         command_packet[3] = param_1
         command_packet[4] = param_2 & 0xFF
         command_packet[5] = param_2 >> 8
-        for i,c in enumerate(data):
-            command_packet[6+i] = c
+        for i, cmd in enumerate(data):
+            command_packet[6+i] = cmd
         if self._debug:
-          print("Command Packet Sz: ", len(command_packet))
-          print("\tSending:", [hex(i) for i in command_packet])
+            print("Command Packet Sz: ", len(command_packet))
+            print("\tSending:", [hex(i) for i in command_packet])
         # Checksum, CRC16 verification
         crc = self._at_crc(command_packet[1:-2])
         command_packet[-1] = crc >> 8
@@ -586,17 +575,17 @@ class ATECC:
             else:
                 raise RuntimeError("Failed to read data from chip")
         if self._debug:
-          print("\tReceived: ", [hex(i) for i in response])
+            print("\tReceived: ", [hex(i) for i in response])
         crc = response[-2] | (response[-1] << 8)
         crc2 = self._at_crc(response[0:-2])
         if crc != crc2:
-            raise RuntimeError(STATUS_ERROR_CODES[0xFF])
+            raise RuntimeError("CRC Mismatch")
         for i in range(length):
             buf[i] = response[i+1]
         return response[1]
 
-
-    def _at_crc(self, data, length=None):
+    @staticmethod
+    def _at_crc(data, length=None):
         if length is None:
             length = len(data)
         if not data or not length:
