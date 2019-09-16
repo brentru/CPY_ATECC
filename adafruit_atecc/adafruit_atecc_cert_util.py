@@ -35,18 +35,18 @@ Implementation Notes
 * Adafruit CircuitPython firmware for the supported boards:
   https://github.com/adafruit/circuitpython/releases
 """
-from micropython import const
 import struct
+from micropython import const
 from adafruit_binascii import b2a_base64
 import adafruit_atecc.adafruit_atecc_asn1 as asn1
 
-ASN1_INTEGER           = const(0x02)
-ASN1_BIT_STRING        = const(0x03)
-ASN1_NULL              = const(0x05)
+ASN1_INTEGER = const(0x02)
+ASN1_BIT_STRING = const(0x03)
+ASN1_NULL = const(0x05)
 ASN1_OBJECT_IDENTIFIER = const(0x06)
 ASN1_PRINTABLE_STRING  = const(0x13)
-ASN1_SEQUENCE          = const(0x30)
-ASN1_SET               = const(0x31)
+ASN1_SEQUENCE = const(0x30)
+ASN1_SET = const(0x31)
 
 # Subject public key data length, fixed.
 SUB_PUB_KEY_DATA_LEN   = const(0x59)
@@ -65,16 +65,16 @@ class CSR:
 
     """
     def __init__(self, atecc, slot_num, private_key, country, state_prov,
-                  city, org, org_unit):
-      self._atecc = atecc
-      self.private_key = private_key
-      self._slot = slot_num
-      self._country = country
-      self._state_province = state_prov
-      self._locality = city
-      self._org = org
-      self._org_unit = org_unit
-      self._common = self._atecc.serial_number
+                 city, org, org_unit):
+        self._atecc = atecc
+        self.private_key = private_key
+        self._slot = slot_num
+        self._country = country
+        self._state_province = state_prov
+        self._locality = city
+        self._org = org
+        self._org_unit = org_unit
+        self._common = self._atecc.serial_number
 
     def generate_csr(self):
         """Generates and returns
@@ -89,8 +89,8 @@ class CSR:
         """
         assert 0 <= self._slot <= 4, "Provided slot must be between 0 and 4."
         # Initialize ASN1 certificate info
-        self._cert_info = asn1.cert(self._country, self._state_province, self._locality, 
-                                      self._org, self._org_unit, self._common)
+        self._cert_info = asn1.cert(self._country, self._state_province, self._locality,
+                                    self._org, self._org_unit, self._common)
         self._pub_key = bytearray(64)
         if self.private_key:
             self._atecc.gen_key(self._pub_key, self._slot, self.private_key)
@@ -99,73 +99,73 @@ class CSR:
 
 
     def _csr_end(self):
-      """Generates and returns
-      a certificate signing request."""
-      len_issuer_subject = self._cert_info.issuer_or_subject_length()
-      len_sub_header = asn1.seq_header_length(len_issuer_subject)
-      len_pub_key = 2 + 2 + 9 + 10 + 4 + 64
-      
-      len_csr_info = self._cert_info._version_len + len_issuer_subject + len_sub_header + len_pub_key + 2
-      len_csr_info_header = asn1.seq_header_length(len_csr_info)
+        """Generates and returns
+        a certificate signing request."""
+        len_issuer_subject = self._cert_info.issuer_or_subject_length()
+        len_sub_header = asn1.seq_header_length(len_issuer_subject)
+        len_pub_key = 2 + 2 + 9 + 10 + 4 + 64
 
-      # CSR Info Packet
-      csr_info = bytearray()
+        len_csr_info = self._cert_info._version_len + len_issuer_subject + len_sub_header + len_pub_key + 2
+        len_csr_info_header = asn1.seq_header_length(len_csr_info)
 
-      # Append CSR Info --> [0:2]
-      self.get_sequence_header(len_csr_info, csr_info)
+        # CSR Info Packet
+        csr_info = bytearray()
 
-      # Append Version --> [3:5]
-      self.get_version(csr_info)
+        # Append CSR Info --> [0:2]
+        self.get_sequence_header(len_csr_info, csr_info)
 
-      # Append Subject --> [6:7]
-      self.get_sequence_header(len_issuer_subject, csr_info)
+        # Append Version --> [3:5]
+        self.get_version(csr_info)
 
-      # Append Issuer or Subject
-      self.get_issuer_or_subject(csr_info)
+        # Append Subject --> [6:7]
+        self.get_sequence_header(len_issuer_subject, csr_info)
 
-      # Append Public Key
-      self.get_public_key(csr_info)
+        # Append Issuer or Subject
+        self.get_issuer_or_subject(csr_info)
 
-      # Termination bits
-      csr_info += b"\xa0\x00"
+        # Append Public Key
+        self.get_public_key(csr_info)
 
-      csr_info_sha_256 = bytearray(64)
+        # Termination bits
+        csr_info += b"\xa0\x00"
 
-      # Init. SHA-256 Calculation
-      self._atecc.sha_start()
+        csr_info_sha_256 = bytearray(64)
 
-      for i in range(0, len_csr_info + len_csr_info_header, 64):
-        chunk_len = (len_csr_info_header + len_csr_info) - i
+        # Init. SHA-256 Calculation
+        self._atecc.sha_start()
 
-        if chunk_len > 64:
-          chunk_len = 64
-        if chunk_len == 64:
-          self._atecc.sha_update(csr_info[i:i+64])
-        else:
-          csr_info_sha_256 = self._atecc.sha_digest(csr_info[i:])
+        for i in range(0, len_csr_info + len_csr_info_header, 64):
+          chunk_len = (len_csr_info_header + len_csr_info) - i
 
-      # Sign the SHA256 Digest
-      signature = bytearray(64)
-      signature = self._atecc.ecdsa_sign(self._slot, csr_info_sha_256)
+          if chunk_len > 64:
+            chunk_len = 64
+          if chunk_len == 64:
+            self._atecc.sha_update(csr_info[i:i+64])
+          else:
+            csr_info_sha_256 = self._atecc.sha_digest(csr_info[i:])
 
-      # Calculate lengths of post-signature csr
-      len_signature = self.get_signature_length(signature)
-      len_csr = len_csr_info_header + len_csr_info + len_signature
-      len_csr_header = self.get_sequence_header_length(len_csr)
+        # Sign the SHA256 Digest
+        signature = bytearray(64)
+        signature = self._atecc.ecdsa_sign(self._slot, csr_info_sha_256)
 
-      # Final CSR
-      csr = bytearray()
+        # Calculate lengths of post-signature csr
+        len_signature = self.get_signature_length(signature)
+        len_csr = len_csr_info_header + len_csr_info + len_signature
+        len_csr_header = self.get_sequence_header_length(len_csr)
 
-      self.get_sequence_header(len_csr, csr)
+        # Final CSR
+        csr = bytearray()
 
-      # append csr_info
-      csr += csr_info
+        self.get_sequence_header(len_csr, csr)
 
-      # append signature to csr
-      self.get_signature(signature, csr)
+        # append csr_info
+        csr += csr_info
 
-      csr = b2a_base64(csr)
-      return csr
+        # append signature to csr
+        self.get_signature(signature, csr)
+
+        csr = b2a_base64(csr)
+        return csr
 
     def get_signature(self, signature, data):
       """Appends signature data to buffer."""
@@ -300,15 +300,15 @@ class CSR:
 
     def get_issuer_or_subject(self, data):
       """Appends issuer or subject data, if they exist."""
-      if len(self._country) > 0:
+      if self._country:
         self.get_name(self._country, 0x06, data)
-      if len(self._state_province) > 0:
+      if self._state_province > 0:
         self.get_name(self._state_province, 0x08, data)
-      if len(self._locality) > 0:
+      if self._locality > 0:
         self.get_name(self._locality, 0x07, data)
-      if len(self._org) > 0:
+      if self._org > 0:
         self.get_name(self._org, 0x0a, data)
-      if len(self._org_unit) > 0:
+      if self._org_unit > 0:
         self.get_name(self._org_unit, 0x0b, data)
-      if len(self._common) > 0:
+      if self._common > 0:
         self.get_name(self._common, 0x03, data)
