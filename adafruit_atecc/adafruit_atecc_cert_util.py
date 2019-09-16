@@ -139,14 +139,13 @@ class CSR:
         if chunk_len > 64:
           chunk_len = 64
         if chunk_len == 64:
-          self._atecc.sha_update(csr_info[i])
+          self._atecc.sha_update(csr_info[i:i+64])
         else:
           csr_info_sha_256 = self._atecc.sha_digest(csr_info[i:])
 
       # Sign the SHA256 Digest
       signature = bytearray(64)
       signature = self._atecc.ecdsa_sign(self._slot, csr_info_sha_256)
-      print('Sig: ', signature)
 
       # Calculate lengths of post-signature csr
       len_signature = self.get_signature_length(signature)
@@ -164,10 +163,7 @@ class CSR:
       # append signature to csr
       self.get_signature(signature, csr)
 
-
       b64_ascii_data = b2a_base64(csr)
-      print('Finalized CSR Size: ', len(csr))
-      print(csr)
 
       print("-----BEGIN CERTIFICATE REQUEST-----")
       print(b64_ascii_data.decode('utf-8'))

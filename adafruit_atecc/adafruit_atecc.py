@@ -450,7 +450,8 @@ class ATECC:
             message = pack("B", message)
         self.wakeup()
         status = bytearray(1)
-        self._send_command(OP_SHA, 0x01, len(message), message)
+        assert len(message) == 64, "Message provided to sha_update must be 64 bytes"
+        self._send_command(OP_SHA, 0x01, 64, message)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Update"
@@ -469,6 +470,7 @@ class ATECC:
         self.wakeup()
         # Include optional message
         if message:
+            print("MSG: ", message)
             self._send_command(OP_SHA, 0x02, len(message), message)
         else:
             self._send_command(OP_SHA, 0x02)
