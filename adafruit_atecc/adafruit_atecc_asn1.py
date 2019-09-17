@@ -35,16 +35,7 @@ Implementation Notes
 * Adafruit CircuitPython firmware for the supported boards:
   https://github.com/adafruit/circuitpython/releases
 """
-from micropython import const
 import struct
-
-ASN1_INTEGER           = const(0x02)
-ASN1_BIT_STRING        = const(0x03)
-ASN1_NULL              = const(0x05)
-ASN1_OBJECT_IDENTIFIER = const(0x06)
-ASN1_PRINTABLE_STRING  = const(0x13)
-ASN1_SEQUENCE          = const(0x30)
-ASN1_SET               = const(0x31)
 
 # pylint: disable=invalid-name
 def get_signature(signature, data):
@@ -98,7 +89,7 @@ def get_signature(signature, data):
     return 21 + r_len + s_len
 
 
-
+# pylint: disable=too-many-arguments
 def get_issuer_or_subject(data, country, state_prov, locality,
                           org, org_unit, common):
     """Appends issuer or subject data, if they exist."""
@@ -196,15 +187,8 @@ def get_sequence_header_length(seq_header_len):
         return 3
     return 2
 
-def seq_header_length(length):
-  if length > 255:
-    return 4
-  elif length > 127:
-    return 3
-  else:
-    return 2
-
 def issuer_or_subject_length(country, state_prov, city, org, org_unit, common):
+    """Returns total length of provided certificate information."""
     tot_len = 0
     if country:
         tot_len += 11 + len(country)
