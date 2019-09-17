@@ -35,21 +35,8 @@ Implementation Notes
 * Adafruit CircuitPython firmware for the supported boards:
   https://github.com/adafruit/circuitpython/releases
 """
-import struct
-from micropython import const
 from adafruit_binascii import b2a_base64
 import adafruit_atecc.adafruit_atecc_asn1 as asn1
-
-ASN1_INTEGER = const(0x02)
-ASN1_BIT_STRING = const(0x03)
-ASN1_NULL = const(0x05)
-ASN1_OBJECT_IDENTIFIER = const(0x06)
-ASN1_PRINTABLE_STRING = const(0x13)
-ASN1_SEQUENCE = const(0x30)
-ASN1_SET = const(0x31)
-
-# Subject public key data length, fixed.
-SUB_PUB_KEY_DATA_LEN = const(0x59)
 
 class CSR:
     """Certificate Signing Request Builder.
@@ -64,7 +51,7 @@ class CSR:
     :param str org_unit: Organizational unit name.
 
     """
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments, too-many-instance-attributes
     def __init__(self, atecc, slot_num, private_key, country, state_prov,
                  city, org, org_unit):
         self._atecc = atecc
@@ -78,40 +65,37 @@ class CSR:
         self._common = self._atecc.serial_number
         self._version_len = 3
         self._cert = None
-        self._pub_key = None
+        self._key = None
 
     def generate_csr(self):
-        """Generates and returns
-        a certificate signing request.
-        """
+        """Generates and returns a certificate signing request."""
         self._csr_begin()
         csr = self._csr_end()
         return csr
 
 
     def _csr_begin(self):
-        """Initializes CSR generation
-        """
+        """Initializes CSR generation. """
         assert 0 <= self._slot <= 4, "Provided slot must be between 0 and 4."
-        self._pub_key = bytearray(64)
+        # Create a new 
+        self._key = bytearray(64)
         if self.private_key:
-            self._atecc.gen_key(self._pub_key, self._slot, self.private_key)
+            self._atecc.gen_key(self._key, self._slot, self.private_key)
             return
-        self._atecc.gen_key(self._pub_key, self._slot, self.private_key)
+        self._atecc.gen_key(self._key, self._slot, self.private_key)
 
 
     def _csr_end(self):
         """Generates and returns
-        a certificate signing request."""
+        a certificate signing request as a base64 string."""
         len_issuer_subject = asn1.issuer_or_subject_length(self._country, self._state_province,
-                                                           self._locality, self._org, self._org_unit,
-                                                           self._common)
-        len_sub_header = asn1.seq_header_length(len_issuer_subject)
-        len_pub_key = 91
+                                                           self._locality, self._org,
+                                                           self._org_unit, self._common)
+        len_sub_header = asn1.get_sequence_header_length(len_issuer_subject)
 
         len_csr_info = self._version_len + len_issuer_subject
-        len_csr_info += len_sub_header + len_pub_key + 2
-        len_csr_info_header = asn1.seq_header_length(len_csr_info)
+        len_csr_info += len_sub_header + 91 + 2
+        len_csr_info_header = asn1.get_sequence_header_length(len_csr_info)
 
         # CSR Info Packet
         csr_info = bytearray()
@@ -130,14 +114,13 @@ class CSR:
                                    self._locality, self._org, self._org_unit, self._common)
 
         # Append Public Key
-        asn1.get_public_key(csr_info, self._pub_key)
+        asn1.get_public_key(csr_info, self._key)
 
-        # Termination bits
+        # Terminator
         csr_info += b"\xa0\x00"
 
-        csr_info_sha_256 = bytearray(64)
-
         # Init. SHA-256 Calculation
+        csr_info_sha_256 = bytearray(64)
         self._atecc.sha_start()
 
         for i in range(0, len_csr_info + len_csr_info_header, 64):
@@ -154,27 +137,17 @@ class CSR:
         signature = bytearray(64)
         signature = self._atecc.ecdsa_sign(self._slot, csr_info_sha_256)
 
-        # Calculate lengths of post-signature csr
+        # Calculations for signature and csr length
         len_signature = asn1.get_signature_length(signature)
         len_csr = len_csr_info_header + len_csr_info + len_signature
         asn1.get_sequence_header_length(len_csr)
 
-        # Final CSR
+        # append signature to csr
         csr = bytearray()
-
         asn1.get_sequence_header(len_csr, csr)
-
         # append csr_info
         csr += csr_info
-
-        # append signature to csr
         asn1.get_signature(signature, csr)
-
+        # encode and return
         csr = b2a_base64(csr)
         return csr
-
-
-
-
-
-
