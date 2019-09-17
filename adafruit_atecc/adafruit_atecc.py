@@ -23,7 +23,7 @@
 `adafruit_atecc`
 ================================================================================
 
-CircuitPython module for the Microchip ATECCx08A Crryptographic Co-Processor
+CircuitPython module for the Microchip ATECCx08A Cryptographic Co-Processor
 
 
 * Author(s): Brent Rubell
@@ -36,10 +36,10 @@ Implementation Notes
 * Adafruit CircuitPython firmware for the supported boards:
   https://github.com/adafruit/circuitpython/releases
 
- * Adafruit's Bus Device library:
+ * Adafruit Bus Device library:
   https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
 
- * Adafruit's binascii library:
+ * Adafruit binascii library:
   https://github.com/adafruit/Adafruit_CircuitPython_binascii
 
 """
@@ -57,18 +57,12 @@ _REG_ATECC_ADDR = const(0xC0)
 _REG_ATECC_DEVICE_ADDR = _REG_ATECC_ADDR >> 1
 
 # Version Registers
-# device version register address
-_REG_REVISION = const(0x30)
 _ATECC_508_VER = const(0x50)
 _ATECC_608_VER = const(0x60)
 
 # Clock constants
-_NORMAL_CLK_FREQ = 1000000 # regular clock speed
 _WAKE_CLK_FREQ = 100000    # slower clock speed
 _TWLO_TIME = 6e-5          # TWlo, in microseconds
-
-# Constants
-_RX_RETRIES = const(20)
 
 # Command Opcodes (9-1-3)
 OP_COUNTER = const(0x24)
@@ -76,9 +70,7 @@ OP_INFO = const(0x30)
 OP_NONCE = const(0x16)
 OP_RANDOM = const(0x1B)
 OP_SHA = const(0x47)
-OP_MAC = const(0x08)
 OP_LOCK = const(0x17)
-OP_READ = const(0x02)
 OP_GEN_KEY = const(0x40)
 OP_SIGN = const(0x41)
 
@@ -88,71 +80,12 @@ EXEC_TIME = {OP_COUNTER: const(20),
              OP_NONCE: const(7),
              OP_RANDOM: const(23),
              OP_SHA: const(47),
-             OP_MAC: const(14),
              OP_LOCK: const(32),
-             OP_READ: const(1),
              OP_GEN_KEY: const(115),
              OP_SIGN : const(70)}
 
 
-# Default TLS Configuration
-# TODO: change this to a tuple!!
-CFG_TLS = bytes([
-    0x01, 0x23, 0x00, 0x00,
-    0x00, 0x00, 0x50, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00,
-    0xC0,
-    0x71,
-    0x00,
-    0xC0,
-    0x00,
-    0x55,
-    0x00,
-    0x83, 0x20,
-    0x87, 0x20,
-    0x87, 0x20,
-    0x87, 0x2F,
-    0x87, 0x2F,
-    0x8F, 0x8F,
-    0x9F, 0x8F,
-    0xAF, 0x8F,
-    0x00, 0x00,
-    0x00, 0x00,
-    0x00, 0x00,
-    0x00, 0x00,
-    0x00, 0x00,
-    0x00, 0x00,
-    0x00, 0x00,
-    0xAF, 0x8F,
-    0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
-    0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
-    0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF,
-    0x00,
-    0x00,
-    0x55,
-    0x55,
-    0xFF, 0xFF,
-    0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x33, 0x00,
-    0x33, 0x00,
-    0x33, 0x00,
-    0x33, 0x00,
-    0x33, 0x00,
-    0x1C, 0x00,
-    0x1C, 0x00,
-    0x1C, 0x00,
-    0x3C, 0x00,
-    0x3C, 0x00,
-    0x3C, 0x00,
-    0x3C, 0x00,
-    0x3C, 0x00,
-    0x3C, 0x00,
-    0x3C, 0x00,
-    0x1C, 0x00])
+CFG_TLS = b'\x01#\x00\x00\x00\x00P\x00\x00\x00\x00\x00\x00\xc0q\x00\xc0\x00U\x00\x83 \x87 \x87 \x87/\x87/\x8f\x8f\x9f\x8f\xaf\x8f\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xaf\x8f\xff\xff\xff\xff\x00\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00UU\xff\xff\x00\x00\x00\x00\x00\x003\x003\x003\x003\x003\x00\x1c\x00\x1c\x00\x1c\x00<\x00<\x00<\x00<\x00<\x00<\x00<\x00\x1c\x00'
 
 class ATECC:
     """
@@ -163,6 +96,7 @@ class ATECC:
         :param busio i2c_bus: I2C Bus object.
         :param int address: Device address, defaults to _ATECC_DEVICE_ADDR.
         :param bool debug: Library debugging enabled
+
         """
         self._debug = debug
         self._i2cbuf = bytearray(12)
@@ -222,14 +156,6 @@ class ATECC:
             i2c.write(self._i2cbuf, end=1)
         time.sleep(0.001)
 
-    def version(self):
-        """Returns the ATECC608As revision number"""
-        self.wakeup()
-        self.idle()
-        vers = bytearray(4)
-        vers = self.info(0x00)
-        return (vers[2] << 8) | vers[3]
-
     @property
     def locked(self):
         """Returns if the ATECC is locked."""
@@ -261,12 +187,21 @@ class ATECC:
         serial_num = str(serial_num).upper()
         return serial_num
 
+    def version(self):
+        """Returns the ATECC608As revision number"""
+        self.wakeup()
+        self.idle()
+        vers = bytearray(4)
+        vers = self.info(0x00)
+        return (vers[2] << 8) | vers[3]
+
     def lock(self, lock_config=False, lock_data_otp=False,
              lock_data=False):
         """Locks specific zones of the ATECC.
         :param bool lock_config: Lock the configuration zone.
         :param bool lock_data_otp: Lock the data and OTP zones.
         :param bool lock_data: Lock a single slot in the data zone
+
         """
         self.wakeup()
         if lock_config:
@@ -286,9 +221,9 @@ class ATECC:
         return res
 
     def info(self, mode, param=None):
-        """Access to statatic or dynamic information based on the
-        value of the mode.
+        """Returns device state information
         :param int mode: Mode encoding, see Table 9-26.
+
         """
         self.wakeup()
         if not param:
@@ -307,28 +242,29 @@ class ATECC:
         :param bytearray data: Input value from system or external.
         :param int mode: Controls the internal RNG and seed mechanism.
         :param int zero: Param2, see Table 9-35.
+
         """
         self.wakeup()
         if mode in (0x00, 0x01):
             if zero == 0x00:
                 assert len(data) == 20, "Data value must be 20 bytes long."
             self._send_command(OP_NONCE, mode, zero, data)
-            # RNG output
+            # nonce returns 32 bytes
             calculated_nonce = bytearray(32)
         elif mode == 0x03:
             # Operating in Nonce pass-through mode
             assert len(data) == 32, "Data value must be 32 bytes long."
             self._send_command(OP_NONCE, mode, zero, data)
+            # nonce returns 1 byte
             calculated_nonce = bytearray(1)
         else:
             raise RuntimeError("Invalid mode specified!")
         time.sleep(EXEC_TIME[OP_NONCE]/1000)
         self._get_response(calculated_nonce)
         time.sleep(1/1000)
-        self.idle()
         if mode == 0x03:
-            # Successful pass-thru nonce command should return 0
             assert calculated_nonce[0] == 0x00, "Incorrectly calculated nonce in pass-thru mode"
+        self.idle()
         return calculated_nonce
 
 
@@ -338,10 +274,10 @@ class ATECC:
         The maximum value that the counter may have is 2,097,151.
         :param int counter: Device's counter to increment.
         :param bool increment_counter: Increments the value of the counter specified.
+
         """
-        count = bytearray(4)
-        self.wakeup()
         counter = 0x00
+        self.wakeup()
         if counter == 1:
             counter = 0x01
         if increment_counter:
@@ -349,15 +285,16 @@ class ATECC:
         else:
             self._send_command(OP_COUNTER, 0x00, counter)
         time.sleep(EXEC_TIME[OP_COUNTER]/1000)
+        count = bytearray(4)
         self._get_response(count)
         self.idle()
         return count
 
-
     def random(self, rnd_min=0, rnd_max=0):
         """Generates a random number for use by the system.
-        :param int rnd_min: Minimum Random value to generate
-        :param int rnd_max: Maximum random value to generate
+        :param int rnd_min: Minimum Random value to generate.
+        :param int rnd_max: Maximum random value to generate.
+
         """
         if rnd_max:
             rnd_min = 0
@@ -374,10 +311,10 @@ class ATECC:
         data = data % delta
         return data + rnd_min
 
-
     def _random(self, data):
         """Initializes the random number generator and returns.
         :param bytearray data: Response buffer.
+
         """
         self.wakeup()
         data_len = len(data)
@@ -392,18 +329,18 @@ class ATECC:
         self.idle()
         return data
 
-    # SHA-256 Methods
+    # SHA-256 Commands
     def sha_start(self):
         """Initializes the SHA-256 calculation engine
         and the SHA context in memory.
         This method MUST be called before sha_update or sha_digest
         """
-        status = bytearray(1)
         self.wakeup()
         self._send_command(OP_SHA, 0x00)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
+        status = bytearray(1)
         self._get_response(status)
-        assert status[0] == 0x00, "Error during SHA Start"
+        assert status[0] == 0x00, "Error during sha_start."
         self.idle()
         return status
 
@@ -411,14 +348,15 @@ class ATECC:
         """Appends bytes to the message. Can be repeatedly called.
         :param bytes message: Up to 64 bytes of data to be included
                                 into the hash operation.
+
         """
         if not hasattr(message, "append"):
             message = pack("B", message)
         self.wakeup()
-        status = bytearray(1)
         assert len(message) == 64, "Message provided to sha_update must be 64 bytes"
         self._send_command(OP_SHA, 0x01, 64, message)
         time.sleep(EXEC_TIME[OP_SHA]/1000)
+        status = bytearray(1)
         self._get_response(status)
         assert status[0] == 0x00, "Error during SHA Update"
         self.idle()
@@ -430,6 +368,7 @@ class ATECC:
         sha_update method so far.
         :param bytearray message: Up to 64 bytes of data to be included
                                     into the hash operation.
+
         """
         if not hasattr(message, "append") and message is not None:
             message = pack("B", message)
@@ -448,9 +387,10 @@ class ATECC:
 
 
     def gen_key(self, key, slot_num, private_key=False):
-        """Generates an ECC private or public key.
-        :param int slot_num: CSR slot (0 to 4).
+        """Generates a private or public key.
+        :param int slot_num: ECC slot (from 0 to 4).
         :param bool private_key: Generates a private key if true.
+
         """
         assert 0 <= slot_num <= 4, "Provided slot must be between 0 and 4."
         self.wakeup()
@@ -468,6 +408,7 @@ class ATECC:
         """Generates and returns a signature using the ECDSA algorithm.
         :param int slot: Which ECC slot to use.
         :param bytearray message: Message to be signed.
+
         """
         # Load the message digest into TempKey using Nonce (9.1.8)
         self.nonce(message, 0x03)
@@ -476,11 +417,12 @@ class ATECC:
         sig = self.sign(slot)
         return sig
 
-    def sign(self, key_id):
-        """Base Signature Class.
+    def sign(self, slot_id):
+        """Performs ECDSA signature calculation with key in provided slot.
+        :param int slot_id: ECC slot containing key for use with signature.
         """
         self.wakeup()
-        self._send_command(0x41, 0x80, key_id)
+        self._send_command(0x41, 0x80, slot_id)
         time.sleep(EXEC_TIME[OP_SIGN]/1000)
         signature = bytearray(64)
         self._get_response(signature)
@@ -498,7 +440,7 @@ class ATECC:
             try:
                 self._write(0, i/4, data[i])
             except OSError:
-                RuntimeError("Writing ATECC configuration failed!")
+                RuntimeError("Failed writing ATECC configuration!")
 
     def _write(self, zone, address, buffer):
         self.wakeup()
