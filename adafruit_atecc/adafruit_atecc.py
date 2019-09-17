@@ -73,6 +73,7 @@ OP_SHA = const(0x47)
 OP_LOCK = const(0x17)
 OP_GEN_KEY = const(0x40)
 OP_SIGN = const(0x41)
+OP_WRITE = const(0x12)
 
 # Maximum execution times, in milliseconds (9-4)
 EXEC_TIME = {OP_COUNTER: const(20),
@@ -82,7 +83,8 @@ EXEC_TIME = {OP_COUNTER: const(20),
              OP_SHA: const(47),
              OP_LOCK: const(32),
              OP_GEN_KEY: const(115),
-             OP_SIGN : const(70)}
+             OP_SIGN : const(70),
+             OP_WRITE : const(26)}
 
 
 CFG_TLS = b'\x01#\x00\x00\x00\x00P\x00\x00\x00\x00\x00\x00\xc0q\x00\xc0\x00U\x00\x83 \x87 \x87 \x87/\x87/\x8f\x8f\x9f\x8f\xaf\x8f\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xaf\x8f\xff\xff\xff\xff\x00\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00UU\xff\xff\x00\x00\x00\x00\x00\x003\x003\x003\x003\x003\x00\x1c\x00\x1c\x00\x1c\x00<\x00<\x00<\x00<\x00<\x00<\x00<\x00\x1c\x00'
@@ -127,8 +129,11 @@ class ATECC:
         time.sleep(_TWLO_TIME)
         data = self._i2c_bus.scan()         # check for an i2c device
 
-        if data[0] != 96:
-            raise TypeError('ATECCx08 not found - please check your wiring!')
+        try:
+            if data[0] != 96:
+                raise TypeError('ATECCx08 not found - please check your wiring!')
+        except IndexError:
+            raise IndexError("ATECCx08 not found - please check your wiring!")
         self._i2c_bus.unlock()
         if not self._i2c_device:
             self._i2c_device = I2CDevice(self._i2c_bus, _REG_ATECC_DEVICE_ADDR, debug=False)
@@ -195,30 +200,24 @@ class ATECC:
         vers = self.info(0x00)
         return (vers[2] << 8) | vers[3]
 
-    def lock(self, lock_config=False, lock_data_otp=False,
-             lock_data=False):
-        """Locks specific zones of the ATECC.
-        :param bool lock_config: Lock the configuration zone.
-        :param bool lock_data_otp: Lock the data and OTP zones.
-        :param bool lock_data: Lock a single slot in the data zone
+    def lock_all_zones(self):
+        """Locks Config, Data and OTP Zones."""
+        self.lock(0)
+        self.lock(1)
 
+
+    def lock(self, zone):
+        """Locks specific ATECC zones.
+        :param int zone: ATECC zone to lock.
         """
         self.wakeup()
-        if lock_config:
-            mode = 0x00
-        elif lock_data_otp:
-            mode = 0x01
-        elif lock_data:
-            mode = 0x02
-        else:
-            raise RuntimeError("Illegal slot value.")
-        self._send_command(0x17, mode, 0x0000)
-        res = bytearray(1)
+        self._send_command(0x17, 0x80 | zone, 0x0000)
         time.sleep(EXEC_TIME[OP_LOCK]/1000)
+        res = bytearray(1)
         self._get_response(res)
-        self.idle()
         assert res[0] == 0x00, "Failed locking ATECC!"
-        return res
+        self.idle()
+
 
     def info(self, mode, param=None):
         """Returns device state information
@@ -436,23 +435,20 @@ class ATECC:
         # First 16 bytes of data are skipped, not writable
         for i in range(16, 128, 4):
             if i == 84:
+                # can't write
                 continue
-            try:
-                self._write(0, i/4, data[i])
-            except OSError:
-                RuntimeError("Failed writing ATECC configuration!")
+            self._write(0, i//4, data[i:i+4])
 
     def _write(self, zone, address, buffer):
         self.wakeup()
-        buffer = bytearray(buffer)
         if len(buffer) not in (4, 32):
-            raise RuntimeError("Only 4 and 32 byte writes supported.")
+            raise RuntimeError("Only 4 or 32-byte writes supported.")
         if len(buffer) == 32:
             zone |= 0x80
         self._send_command(0x12, zone, address, buffer)
-        time.sleep(0.026)
-        self._get_response(buffer)
-        time.sleep(0.001)
+        time.sleep(26/1000)
+        status = bytearray(1)
+        self._get_response(status)
         self.idle()
 
     def _read(self, zone, address, buffer):
