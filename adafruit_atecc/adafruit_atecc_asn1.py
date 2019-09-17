@@ -68,6 +68,7 @@ def get_signature(signature, data):
     data += b"\x30" + struct.pack("B", r_len + s_len + 4)
 
     data += b"\x02" + struct.pack("B", r_len)
+
     if r & 0x80:
         data += b"\x00"
         r_len -= 1
@@ -92,7 +93,7 @@ def get_signature(signature, data):
 # pylint: disable=too-many-arguments
 def get_issuer_or_subject(data, country, state_prov, locality,
                           org, org_unit, common):
-    """Appends issuer or subject data, if they exist."""
+    """Appends issuer or subject, if they exist, to data."""
     if country:
         get_name(country, 0x06, data)
     if state_prov:
@@ -113,7 +114,6 @@ def get_name(name, obj_type, data):
     :param int obj_type: Object identifier type.
     :param bytearray data: Buffer to write to.
     """
-
     # ASN.1 SET
     data += b"\x31" + struct.pack("B", len(name) + 9)
     # ASN.1 SEQUENCE
@@ -127,13 +127,13 @@ def get_name(name, obj_type, data):
     return len(name) + 11
 
 def get_version(data):
-    """Sets X.509 version"""
+    """Appends X.509 version to data."""
     #  If no extensions are present, but a UniqueIdentifier
-    # is present, the version SHOULD be 2 (value is 1) [4-1-2]
+    #  is present, the version SHOULD be 2 (value is 1) [4-1-2]
     data += b"\x02\x01\x00"
 
 def get_sequence_header(length, data):
-    """Appends sequence header to data."""
+    """Appends sequence header to provided data."""
     data += b"\x30"
     if length > 255:
         data += b"\x82"
@@ -156,7 +156,7 @@ def get_public_key(data, public_key):
     data += public_key
 
 def get_signature_length(signature):
-    """Get length of ECDSA signature.
+    """Return length of ECDSA signature.
     :param bytearray signature: Signed SHA256 hash.
     """
     r = signature[0]
